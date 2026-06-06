@@ -79,3 +79,52 @@ class AuditEvent(Base):
         DateTime,
         default=datetime.utcnow
     )
+class MemoryHistory(Base):
+
+    __tablename__ = "memory_history"
+
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True
+    )
+
+    memory_id = Column(
+        Integer,
+        nullable=False
+    )
+
+    user_id = Column(
+        String,
+        nullable=False
+    )
+
+    old_fact = Column(
+        String,
+        nullable=False
+    )
+
+    new_fact = Column(
+        String,
+        nullable=False
+    )
+
+    category = Column(
+        String,
+        nullable=False
+    )
+
+    old_version = Column(
+        Integer,
+        nullable=False
+    )
+
+    new_version = Column(
+        Integer,
+        nullable=False
+    )
+
+    created_at = Column(
+        DateTime,
+        default=datetime.utcnow
+    )

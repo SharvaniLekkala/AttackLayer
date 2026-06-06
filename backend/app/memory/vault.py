@@ -22,7 +22,12 @@ from app.audit.logger import (
     log_security_event
 )
 
-
+from app.security.trust_engine import (
+    calculate_trust
+)
+from app.audit.history_logger import (
+    log_memory_history
+)
 def create_memory(
     db,
     user_id,
@@ -37,23 +42,7 @@ def create_memory(
         fact
     )
 
-    log_security_event(
-
-        db=db,
-
-        operation="WRITE",
-
-        decision=
-            security_result["decision"],
-
-        threat=
-            security_result["threat"],
-
-        risk_score=
-            security_result["risk_score"],
-
-        payload=fact
-    )
+    
 
     # ==========================
     # Blocked Content
@@ -93,32 +82,95 @@ def create_memory(
 
         conflict_detected = True
 
+        new_version = (
+
+            existing_memory.version
+
+            +
+
+            1
+
+        )
+
+        log_memory_history(
+
+            db=db,
+
+            old_memory=
+                existing_memory,
+
+            new_fact=
+                fact,
+
+            new_version=
+                new_version
+
+        )
+
         existing_memory.active = False
 
         db.commit()
+    trust_score = calculate_trust(
 
-        new_version = (
-            existing_memory.version + 1
-        )
+    source="USER",
 
+    security_decision=
+
+        security_result[
+            "decision"
+        ],
+
+    category_confidence=
+
+        security_result[
+            "category_confidence"
+        ],
+
+    conflict_detected=
+
+        conflict_detected,
+
+    version=
+
+        new_version,
+
+    attack_type=
+
+        security_result[
+            "threat"
+        ]
+
+)
     # ==========================
     # Create Memory
     # ==========================
 
     memory = Memory(
 
-        user_id=user_id,
+    user_id=user_id,
 
-        fact=fact,
+    fact=fact,
 
-        category=
-            security_result["category"],
+    category=
+        security_result[
+            "category"
+        ],
 
-        version=
-            new_version,
+    trust_score=
+        trust_score,
 
-        active=True
-    )
+    risk_score=
+        security_result[
+            "risk_score"
+        ],
+
+    source="USER",
+
+    version=
+        new_version,
+
+    active=True
+)
 
     db.add(memory)
 
@@ -226,3 +278,40 @@ def archive_memory(
     db.refresh(memory)
 
     return memory
+
+from app.database.models import (
+    MemoryHistory
+)
+
+
+def get_memory_history(
+
+    db,
+
+    memory_id
+
+):
+
+    history = (
+
+        db.query(
+
+            MemoryHistory
+
+        )
+
+        .filter(
+
+            MemoryHistory.memory_id
+
+            ==
+
+            memory_id
+
+        )
+
+        .all()
+
+    )
+
+    return history
