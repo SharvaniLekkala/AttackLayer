@@ -1,70 +1,274 @@
 from fastapi import APIRouter
 from fastapi import Depends
+
 from sqlalchemy.orm import Session
 
-from app.database.session import get_db
+from app.database.session import (
+    get_db
+)
 
 from app.memory.vault import (
-    create_memory,
     get_all_memories,
-    get_memory_by_id,
-    archive_memory
+    archive_memory,
+    get_memory_history
+)
+
+from app.database.models import (
+    MemoryHistory
 )
 
 router = APIRouter(
+
     prefix="/memory",
-    tags=["Memory Vault"]
+
+    tags=["Memory"]
+
 )
 
 
-@router.post("/create")
-def create_memory_api(
-
-    user_id: str,
-    fact: str,
-
-    db: Session = Depends(get_db)
-
-):
-    return create_memory(
-        db,
-        user_id,
-        fact
-    )
-
-
 @router.get("/all")
-def get_memories(
+def all_memories(
 
-    db: Session = Depends(get_db)
-
-):
-    return get_all_memories(db)
-
-
-@router.get("/{memory_id}")
-def get_memory(
-
-    memory_id: int,
-
-    db: Session = Depends(get_db)
-
-):
-    return get_memory_by_id(
-        db,
-        memory_id
+    db: Session = Depends(
+        get_db
     )
 
+):
 
-@router.delete("/{memory_id}")
-def archive_memory_api(
+    memories = get_all_memories(
+
+        db
+
+    )
+
+    result = []
+
+    for memory in memories:
+
+        result.append(
+
+            {
+
+                "id":
+
+                    memory.id,
+
+                "fact":
+
+                    memory.fact,
+
+                "category":
+
+                    memory.category,
+
+                "trust_score":
+
+                    round(
+
+                        memory.trust_score,
+
+                        4
+
+                    ),
+
+                "risk_score":
+
+                    round(
+
+                        memory.risk_score,
+
+                        4
+
+                    ),
+
+                "version":
+
+                    memory.version,
+
+                "status":
+
+                    "ACTIVE"
+
+                    if
+
+                    memory.active
+
+                    else
+
+                    "INACTIVE",
+
+                "source":
+
+                    memory.source
+
+            }
+
+        )
+
+    return result
+
+
+@router.post(
+    "/archive/{memory_id}"
+)
+def archive(
 
     memory_id: int,
 
-    db: Session = Depends(get_db)
+    db: Session = Depends(
+        get_db
+    )
 
 ):
+
     return archive_memory(
+
         db,
+
         memory_id
+
     )
+
+
+@router.get(
+    "/history/{memory_id}"
+)
+def history(
+
+    memory_id: int,
+
+    db: Session = Depends(
+        get_db
+    )
+
+):
+
+    history = get_memory_history(
+
+        db,
+
+        memory_id
+
+    )
+
+    result = []
+
+    for item in history:
+
+        result.append(
+
+            {
+
+                "id":
+
+                    item.id,
+
+                "old_fact":
+
+                    item.old_fact,
+
+                "new_fact":
+
+                    item.new_fact,
+
+                "category":
+
+                    item.category,
+
+                "old_version":
+
+                    item.old_version,
+
+                "new_version":
+
+                    item.new_version,
+
+                "time":
+
+                    item.created_at.strftime(
+
+                        "%H:%M:%S"
+
+                    )
+
+            }
+
+        )
+
+    return result
+
+
+@router.get(
+    "/history"
+)
+def full_history(
+
+    db: Session = Depends(
+        get_db
+    )
+
+):
+
+    records = (
+
+        db.query(
+
+            MemoryHistory
+
+        )
+
+        .order_by(
+
+            MemoryHistory.id.desc()
+
+        )
+
+        .all()
+
+    )
+
+    result = []
+
+    for item in records:
+
+        result.append(
+
+            {
+
+                "memory_id":
+
+                    item.memory_id,
+
+                "old_fact":
+
+                    item.old_fact,
+
+                "new_fact":
+
+                    item.new_fact,
+
+                "category":
+
+                    item.category,
+
+                "old_version":
+
+                    item.old_version,
+
+                "new_version":
+
+                    item.new_version,
+
+                "time":
+
+                    item.created_at.strftime(
+
+                        "%H:%M:%S"
+
+                    )
+
+            }
+
+        )
+
+    return result
