@@ -28,5 +28,7 @@ def normalize_memory(text):
 
             break
 
-    return text.strip().capitalize()
+    return " ".join(
+    text.strip().lower().split()
+)
 

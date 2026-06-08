@@ -28,6 +28,12 @@ function AuditTable({
 
             "REVIEW"
 
+            ||
+
+            decision===
+
+            "ALLOW_WITH_WARNING"
+
         ){
 
             return "#f59e0b";

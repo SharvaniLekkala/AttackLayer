@@ -28,6 +28,15 @@ from app.api.chat import (
 from app.api.export import (
     router as export_router
 )
+from app.api.tool_policy import (
+    router as tool_policy_router
+)
+from app.api.propagation import (
+    router as propagation_router
+)
+from app.api.research import (
+    router as research_router
+)
 app = FastAPI(
     title="AttackLayer",
     description="Semantic Security Firewall for Long-Term Memory in LLM Agents",
@@ -59,6 +68,15 @@ app.include_router(
 
     export_router
 
+)
+app.include_router(
+    tool_policy_router
+)
+app.include_router(
+    propagation_router
+)
+app.include_router(
+    research_router
 )
 app.add_middleware(
     CORSMiddleware,

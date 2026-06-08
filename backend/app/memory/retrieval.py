@@ -97,14 +97,17 @@ def retrieve_memories(
 
             Memory.user_id
             ==
-            user_id
+            user_id,
+
+            Memory.active
+            ==
+            True
 
         )
 
         .all()
 
     )
-
     # ==========================
     # Fallback Personal Memory
     # ==========================

@@ -4,39 +4,27 @@ from app.database.models import (
 
 
 def log_memory_history(
-
     db,
-
     old_memory,
-
     new_fact,
-
     new_version
-
 ):
 
     history = MemoryHistory(
 
-        memory_id=
-            old_memory.id,
+        memory_id=old_memory.id,
 
-        user_id=
-            old_memory.user_id,
+        user_id=old_memory.user_id,
 
-        old_fact=
-            old_memory.fact,
+        old_fact=old_memory.fact,
 
-        new_fact=
-            new_fact,
+        new_fact=new_fact,
 
-        category=
-            old_memory.category,
+        category=old_memory.category,
 
-        old_version=
-            old_memory.version,
+        old_version=old_memory.memory_version,
 
-        new_version=
-            new_version
+        new_version=new_version
 
     )
 

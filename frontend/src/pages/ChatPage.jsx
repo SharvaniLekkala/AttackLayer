@@ -1,337 +1,177 @@
+import { useState, useRef, useEffect } from "react";
+import { sendChatMessage } from "../api/attacklayer";
+import MessageBubble from "../components/chat/MessageBubble";
+import ChatSidebar from "../components/chat/ChatSidebar";
 import {
-
-    useState
-
-} from "react";
-
-import {
-
-    sendChatMessage
-
-} from "../api/attacklayer";
-
+    getSessions,
+    createSession,
+    getSession,
+    updateSession,
+    deleteSession,
+    titleFromMessage,
+    bootstrapChatState
+} from "../utils/chatSessions";
 import "../styles/chat.css";
 
-function ChatPage(){
-
-    const [
-
-        messages,
-
-        setMessages
-
-    ]=useState([
-
-        {
-
-            role:
-
-            "assistant",
-
-            content:
-
-            "Hello! How can I help you today?"
-
-        }
-
-    ]);
-
-    const [
-
-        input,
-
-        setInput
-
-    ]=useState("");
-
-    async function send(){
-
-        if(
-
-            !input.trim()
-
-        ){
-
-            return;
-
-        }
-
-        const userMessage={
-
-            role:
-
-            "user",
-
-            content:
-
-            input
-
-        };
-
-        setMessages(
-
-            previous=>
-
-            [
-
-                ...previous,
-
-                userMessage
-
-            ]
-
-        );
-
-        const current=input;
-
-        setInput("");
-
-        try{
-
-            const response=
-
-            await sendChatMessage(
-
-                1,
-
-                current
-
-            );
-
-            setMessages(
-
-                previous=>
-
-                [
-
-                    ...previous,
-
-                    {
-
-                        role:
-
-                        "assistant",
-
-                        content:
-
-                        response.response
-
-                    }
-
-                ]
-
-            );
-
-        }
-
-        catch(
-
-            error
-
-        ){
-
-            setMessages(
-
-                previous=>
-
-                [
-
-                    ...previous,
-
-                    {
-
-                        role:
-
-                        "assistant",
-
-                        content:
-
-                        "Sorry, something went wrong."
-
-                    }
-
-                ]
-
-            );
-
-        }
-
+function ChatPage() {
+
+    const initial = bootstrapChatState();
+
+    const [sessions, setSessions] = useState(initial.sessions);
+    const [activeId, setActiveId] = useState(initial.activeId);
+    const [messages, setMessages] = useState(initial.messages);
+    const [input, setInput] = useState("");
+    const [loading, setLoading] = useState(false);
+    const messagesEndRef = useRef(null);
+
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [messages, loading]);
+
+    function refreshSessions() {
+        setSessions(getSessions());
     }
 
-    return(
+    function selectSession(sessionId) {
+        const session = getSession(sessionId);
+        if (!session) return;
+        setActiveId(sessionId);
+        setMessages(Array.isArray(session.messages) ? session.messages : []);
+    }
 
-        <div
+    function handleNewChat() {
+        const session = createSession();
+        refreshSessions();
+        setActiveId(session.id);
+        setMessages([]);
+        setInput("");
+    }
 
-            className=
+    function handleDelete(sessionId) {
+        const remaining = deleteSession(sessionId);
+        refreshSessions();
 
-            "chat-page"
+        if (sessionId !== activeId) return;
 
-        >
+        if (remaining.length > 0) {
+            selectSession(remaining[0].id);
+            return;
+        }
 
-            <div
+        const session = createSession();
+        refreshSessions();
+        setActiveId(session.id);
+        setMessages([]);
+    }
 
-                className=
+    function persistMessages(sessionId, nextMessages, title) {
+        updateSession(sessionId, {
+            messages: nextMessages,
+            ...(title ? { title } : {})
+        });
+        refreshSessions();
+    }
 
-                "chat-container"
+    async function send() {
+        if (!input.trim() || loading || !activeId) return;
 
-            >
+        const userMessage = { role: "user", content: input };
+        const nextMessages = [...messages, userMessage];
 
-                <div
+        setMessages(nextMessages);
 
-                    className=
+        const isFirstMessage = messages.length === 0;
+        const title = isFirstMessage ? titleFromMessage(input) : undefined;
 
-                    "chat-header"
+        persistMessages(activeId, nextMessages, title);
 
-                >
+        const current = input;
+        setInput("");
+        setLoading(true);
 
-                    <h1>
+        try {
+            const response = await sendChatMessage(activeId, current);
+            const withReply = [
+                ...nextMessages,
+                { role: "assistant", content: response.response }
+            ];
+            setMessages(withReply);
+            persistMessages(activeId, withReply);
+        } catch {
+            const withError = [
+                ...nextMessages,
+                {
+                    role: "assistant",
+                    content: "Sorry, something went wrong. Please try again."
+                }
+            ];
+            setMessages(withError);
+            persistMessages(activeId, withError);
+        } finally {
+            setLoading(false);
+        }
+    }
 
-                        AI Assistant
+    return (
+        <div className="chat-layout">
+            <ChatSidebar
+                sessions={sessions}
+                activeId={activeId}
+                onSelect={selectSession}
+                onNew={handleNewChat}
+                onDelete={handleDelete}
+            />
 
-                    </h1>
-
+            <div className="chat-main">
+                <div className="chat-messages">
+                    {messages.length === 0 && !loading && (
+                        <div className="chat-welcome">
+                            <h2>How can I help you today?</h2>
+                        </div>
+                    )}
+                    {messages.map((message, index) => (
+                        <MessageBubble
+                            key={index}
+                            sender={message.role === "user" ? "user" : "assistant"}
+                            text={message.content}
+                        />
+                    ))}
+                    {loading && (
+                        <div className="chat-loading">
+                            <span className="typing-dot" />
+                            <span className="typing-dot" />
+                            <span className="typing-dot" />
+                        </div>
+                    )}
+                    <div ref={messagesEndRef} />
                 </div>
 
-                <div
-
-                    className=
-
-                    "chat-messages"
-
-                >
-
-                    {
-
-                        messages.map(
-
-                            (
-
-                                message,
-
-                                index
-
-                            )=>
-
-                            (
-
-                                <div
-
-                                    key={
-
-                                        index
-
-                                    }
-
-                                    className={
-
-                                        message.role===
-
-                                        "user"
-
-                                        ?
-
-                                        "user-message"
-
-                                        :
-
-                                        "assistant-message"
-
-                                    }
-
-                                >
-
-                                    {
-
-                                        message.content
-
-                                    }
-
-                                </div>
-
-                            )
-
-                        )
-
-                    }
-
-                </div>
-
-                <div
-
-                    className=
-
-                    "chat-input"
-
-                >
-
-                    <input
-
-                        value={
-
-                            input
-
-                        }
-
-                        onChange={
-
-                            event=>
-
-                            setInput(
-
-                                event.target.value
-
-                            )
-
-                        }
-
-                        placeholder=
-
-                        "Message AI Assistant..."
-
-                        onKeyDown={
-
-                            event=>{
-
-                                if(
-
-                                    event.key===
-
-                                    "Enter"
-
-                                ){
-
+                <div className="chat-input-area">
+                    <div className="chat-input">
+                        <input
+                            value={input}
+                            onChange={(e) => setInput(e.target.value)}
+                            placeholder="Message..."
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter" && !e.shiftKey) {
+                                    e.preventDefault();
                                     send();
-
                                 }
-
-                            }
-
-                        }
-
-                    />
-
-                    <button
-
-                        onClick={
-
-                            send
-
-                        }
-
-                    >
-
-                        Send
-
-                    </button>
-
+                            }}
+                            disabled={loading}
+                        />
+                        <button
+                            type="button"
+                            onClick={send}
+                            disabled={loading || !input.trim()}
+                        >
+                            Send
+                        </button>
+                    </div>
                 </div>
-
             </div>
-
         </div>
-
     );
-
 }
 
 export default ChatPage;
