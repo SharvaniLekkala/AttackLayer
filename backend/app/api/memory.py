@@ -18,209 +18,154 @@ from app.database.models import (
 )
 
 router = APIRouter(
-
     prefix="/memory",
-
     tags=["Memory"]
-
 )
 
 
 @router.get("/all")
 def all_memories(
-
-    db: Session = Depends(
-        get_db
-    )
-
+    db: Session = Depends(get_db)
 ):
 
-    memories = get_all_memories(
-
-        db
-
-    )
+    memories = get_all_memories(db)
 
     result = []
 
     for memory in memories:
 
-        result.append(
+        result.append({
 
-            {
+            "id": memory.id,
 
-                "id":
+            "user_id": memory.user_id,
 
-                    memory.id,
+            "fact": memory.fact,
 
-                "fact":
+            "category": memory.category,
 
-                    memory.fact,
+            "trust_score": round(
+                memory.trust_score,
+                4
+            ),
 
-                "category":
+            "confidence_score": round(
+                memory.confidence_score,
+                4
+            ),
 
-                    memory.category,
+            "conflict_score": round(
+                memory.conflict_score,
+                4
+            ),
 
-                "trust_score":
+            "poison_score": round(
+                memory.poison_score,
+                4
+            ),
 
-                    round(
+            "risk_score": round(
+                memory.risk_score,
+                4
+            ),
 
-                        memory.trust_score,
+            "attack_type":
+                memory.attack_type,
 
-                        4
+            "decision":
+                memory.final_decision,
 
-                    ),
+            "memory_version":
+                memory.memory_version,
 
-                "risk_score":
+            "verified":
+                memory.verified,
 
-                    round(
+            "poison_flag":
+                memory.poison_flag,
 
-                        memory.risk_score,
+            "status":
+                "ACTIVE"
+                if memory.active
+                else "INACTIVE",
 
-                        4
-
-                    ),
-
-                "version":
-
-                    memory.version,
-
-                "status":
-
-                    "ACTIVE"
-
-                    if
-
-                    memory.active
-
-                    else
-
-                    "INACTIVE",
-
-                "source":
-
-                    memory.source
-
-            }
-
-        )
+            "source":
+                memory.source
+        })
 
     return result
 
 
-@router.post(
-    "/archive/{memory_id}"
-)
+@router.post("/archive/{memory_id}")
 def archive(
-
     memory_id: int,
-
-    db: Session = Depends(
-        get_db
-    )
-
+    db: Session = Depends(get_db)
 ):
 
     return archive_memory(
-
         db,
-
         memory_id
-
     )
 
 
-@router.get(
-    "/history/{memory_id}"
-)
+@router.get("/history/{memory_id}")
 def history(
-
     memory_id: int,
-
-    db: Session = Depends(
-        get_db
-    )
-
+    db: Session = Depends(get_db)
 ):
 
     history = get_memory_history(
-
         db,
-
         memory_id
-
     )
 
     result = []
 
     for item in history:
 
-        result.append(
+        result.append({
 
-            {
+            "id":
+                item.id,
 
-                "id":
+            "old_fact":
+                item.old_fact,
 
-                    item.id,
+            "new_fact":
+                item.new_fact,
 
-                "old_fact":
+            "category":
+                item.category,
 
-                    item.old_fact,
+            "old_version":
+                item.old_version,
 
-                "new_fact":
+            "new_version":
+                item.new_version,
 
-                    item.new_fact,
+            "time":
+                item.created_at.strftime(
+                    "%H:%M:%S"
+                )
 
-                "category":
-
-                    item.category,
-
-                "old_version":
-
-                    item.old_version,
-
-                "new_version":
-
-                    item.new_version,
-
-                "time":
-
-                    item.created_at.strftime(
-
-                        "%H:%M:%S"
-
-                    )
-
-            }
-
-        )
+        })
 
     return result
 
 
-@router.get(
-    "/history"
-)
+@router.get("/history")
 def full_history(
-
-    db: Session = Depends(
-        get_db
-    )
-
+    db: Session = Depends(get_db)
 ):
 
     records = (
 
         db.query(
-
             MemoryHistory
-
         )
 
         .order_by(
-
             MemoryHistory.id.desc()
-
         )
 
         .all()
@@ -231,44 +176,31 @@ def full_history(
 
     for item in records:
 
-        result.append(
+        result.append({
 
-            {
+            "memory_id":
+                item.memory_id,
 
-                "memory_id":
+            "old_fact":
+                item.old_fact,
 
-                    item.memory_id,
+            "new_fact":
+                item.new_fact,
 
-                "old_fact":
+            "category":
+                item.category,
 
-                    item.old_fact,
+            "old_version":
+                item.old_version,
 
-                "new_fact":
+            "new_version":
+                item.new_version,
 
-                    item.new_fact,
+            "time":
+                item.created_at.strftime(
+                    "%H:%M:%S"
+                )
 
-                "category":
-
-                    item.category,
-
-                "old_version":
-
-                    item.old_version,
-
-                "new_version":
-
-                    item.new_version,
-
-                "time":
-
-                    item.created_at.strftime(
-
-                        "%H:%M:%S"
-
-                    )
-
-            }
-
-        )
+        })
 
     return result

@@ -33,7 +33,25 @@ from app.audit.dashboard import (
 
     get_trust_breakdown,
 
-    get_user_risk_profile
+    get_user_risk_profile,
+
+    get_preference_drift_analytics,
+
+    get_preference_timeline,
+
+    get_preference_drift_distribution,
+
+    get_tool_policy_violations,
+
+    get_tool_policy_analytics,
+
+    get_tool_policy_timeline,
+
+    get_propagation_analytics,
+
+    get_propagation_timeline,
+
+    get_propagation_attack_count
 
 )
 router = APIRouter(
@@ -285,3 +303,130 @@ def user_risk(
         db
 
     )
+
+
+@router.get("/preference-drift")
+def preference_drift_analytics(
+
+    db: Session = Depends(
+        get_db
+    )
+
+):
+
+    return get_preference_drift_analytics(
+        db
+    )
+
+
+@router.get("/preference-timeline")
+def preference_timeline(
+
+    db: Session = Depends(
+        get_db
+    )
+
+):
+
+    return get_preference_timeline(
+        db
+    )
+
+
+@router.get("/preference-drift-distribution")
+def preference_drift_distribution(
+
+    db: Session = Depends(
+        get_db
+    )
+
+):
+
+    return get_preference_drift_distribution(
+        db
+    )
+
+
+@router.get("/tool-policy-violations")
+def tool_policy_violations(
+
+    db: Session = Depends(
+        get_db
+    )
+
+):
+
+    return get_tool_policy_violations(
+        db
+    )
+
+
+@router.get("/tool-policy-analytics")
+def tool_policy_analytics(
+
+    db: Session = Depends(
+        get_db
+    )
+
+):
+
+    return get_tool_policy_analytics(
+        db
+    )
+
+
+@router.get("/tool-policy-timeline")
+def tool_policy_timeline(
+
+    db: Session = Depends(
+        get_db
+    )
+
+):
+
+    return get_tool_policy_timeline(
+        db
+    )
+
+
+@router.get("/propagation-analytics")
+def propagation_analytics(
+
+    db: Session = Depends(
+        get_db
+    )
+
+):
+
+    return get_propagation_analytics(
+        db
+    )
+
+
+@router.get("/propagation-timeline")
+def propagation_timeline(
+
+    db: Session = Depends(
+        get_db
+    )
+
+):
+
+    return get_propagation_timeline(
+        db
+    )
+
+
+@router.get("/propagation-attacks")
+def propagation_attacks(
+
+    db: Session = Depends(
+        get_db
+    )
+
+):
+
+    return {
+        "propagation_attacks":
+            get_propagation_attack_count(db)
+    }

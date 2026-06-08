@@ -8,6 +8,8 @@ client = chromadb.PersistentClient(
 memory_collection = client.get_or_create_collection(
     name="memory_vault"
 )
+
+
 def add_memory_embedding(
     memory_id: int,
     text: str,
@@ -19,6 +21,17 @@ def add_memory_embedding(
         documents=[text],
         embeddings=[embedding]
     )
+
+
+def remove_memory_embedding(
+    memory_id: int
+):
+
+    memory_collection.delete(
+        ids=[str(memory_id)]
+    )
+
+
 def semantic_search(
     embedding,
     top_k=5

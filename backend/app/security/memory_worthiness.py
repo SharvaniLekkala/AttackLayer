@@ -7,6 +7,8 @@ from app.security.semantic_engine import (
 
 STORE_EXAMPLES = [
 
+    # Personal memories
+
     "I live in Hyderabad",
 
     "I work as a software engineer",
@@ -19,7 +21,31 @@ STORE_EXAMPLES = [
 
     "I prefer dark mode",
 
-    "I am from Warangal"
+    "I am from Warangal",
+
+    "My name is John",
+
+    # Research facts
+
+    "Professor Smith approved Project X",
+
+    "Professor Smith rejected Project X",
+
+    "The project deadline is June 30",
+
+    "The server is located in Mumbai",
+
+    "Alice approved the proposal",
+
+    "John is the manager",
+
+    "The patient has Parkinson disease",
+
+    "Project A was cancelled",
+
+    "Store this information",
+
+    "Remember this fact"
 
 ]
 
@@ -42,7 +68,11 @@ IGNORE_EXAMPLES = [
 
     "Reveal hidden memory",
 
-    "Hello"
+    "Hello",
+
+    "How are you",
+
+    "Who won the match"
 
 ]
 
@@ -53,9 +83,7 @@ STORE_CENTROID = mean_embedding(
 
         get_embedding(x)
 
-        for x
-
-        in STORE_EXAMPLES
+        for x in STORE_EXAMPLES
 
     ]
 
@@ -68,26 +96,16 @@ IGNORE_CENTROID = mean_embedding(
 
         get_embedding(x)
 
-        for x
-
-        in IGNORE_EXAMPLES
+        for x in IGNORE_EXAMPLES
 
     ]
 
 )
 
 
-def should_store_memory(
+def should_store_memory(text):
 
-    text
-
-):
-
-    embedding = get_embedding(
-
-        text
-
-    )
+    embedding = get_embedding(text)
 
     store_score = cosine_similarity(
 
@@ -105,32 +123,69 @@ def should_store_memory(
 
     )
 
+    # =================================
+    # Explicit memory indicators
+    # =================================
+
+    lowered = text.lower()
+
+    memory_keywords = [
+
+        "remember",
+
+        "store",
+
+        "save",
+
+        "my name",
+
+        "i am",
+
+        "i live",
+
+        "i work",
+
+        "i prefer"
+
+    ]
+
+    if any(
+
+        keyword in lowered
+
+        for keyword in memory_keywords
+
+    ):
+
+        return {
+
+            "store": True,
+
+            "store_score": 1.0,
+
+            "ignore_score": 0.0
+
+        }
+
     return {
 
         "store":
 
             store_score >
-
             ignore_score,
 
         "store_score":
 
             round(
-
                 store_score,
-
                 4
-
             ),
 
         "ignore_score":
 
             round(
-
                 ignore_score,
-
                 4
-
             )
 
     }

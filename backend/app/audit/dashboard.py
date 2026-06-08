@@ -2,7 +2,10 @@ from sqlalchemy import func
 
 from app.database.models import (
     AuditEvent,
-    Memory
+    Memory,
+    PreferenceEvent,
+    ToolPolicyEvent,
+    PropagationEvent,
 )
 
 
@@ -11,7 +14,6 @@ def get_blocked_events(
     db
 
 ):
-
     return (
 
         db.query(
@@ -80,7 +82,7 @@ def get_conflict_events(
 
         .filter(
 
-            Memory.version
+            Memory.memory_version
 
             >
 
@@ -960,3 +962,602 @@ def get_user_risk_profile(
             total_events
 
     }
+
+
+def get_preference_drift_analytics(
+
+    db
+
+):
+
+    events = (
+
+        db.query(PreferenceEvent)
+
+        .all()
+
+    )
+
+    if not events:
+
+        return {
+
+            "total_updates": 0,
+
+            "legitimate_updates": 0,
+
+            "manipulation_attempts": 0,
+
+            "average_drift_score": 0.0,
+
+            "average_stability_score": 1.0,
+
+        }
+
+    legitimate = sum(
+
+        1
+
+        for event in events
+
+        if event.is_legitimate_update
+
+    )
+
+    manipulation = sum(
+
+        1
+
+        for event in events
+
+        if event.attack_type
+        ==
+        "PREFERENCE_MANIPULATION"
+
+    )
+
+    drift_scores = [
+
+        event.drift_score
+
+        for event in events
+
+    ]
+
+    stability_scores = [
+
+        event.stability_score
+
+        for event in events
+
+    ]
+
+    return {
+
+        "total_updates": len(events),
+
+        "legitimate_updates": legitimate,
+
+        "manipulation_attempts": manipulation,
+
+        "average_drift_score": round(
+
+            sum(drift_scores)
+            /
+            len(drift_scores),
+
+            4
+
+        ),
+
+        "average_stability_score": round(
+
+            sum(stability_scores)
+            /
+            len(stability_scores),
+
+            4
+
+        ),
+
+    }
+
+
+def get_preference_timeline(
+
+    db,
+
+    limit=50
+
+):
+
+    events = (
+
+        db.query(PreferenceEvent)
+
+        .order_by(
+            PreferenceEvent.id.desc()
+        )
+
+        .limit(limit)
+
+        .all()
+
+    )
+
+    return [
+
+        {
+
+            "id": event.id,
+
+            "time": event.created_at.strftime(
+                "%Y-%m-%d %H:%M:%S"
+            ),
+
+            "old_fact": event.old_fact,
+
+            "new_fact": event.new_fact,
+
+            "category": event.category,
+
+            "stability_score": round(
+                event.stability_score,
+                4
+            ),
+
+            "drift_score": round(
+                event.drift_score,
+                4
+            ),
+
+            "is_legitimate_update":
+                event.is_legitimate_update,
+
+            "attack_type":
+                event.attack_type,
+
+        }
+
+        for event in events
+
+    ]
+
+
+def get_preference_drift_distribution(
+
+    db
+
+):
+
+    memories = (
+
+        db.query(Memory)
+
+        .filter(
+
+            Memory.category
+            ==
+            "PREFERENCE",
+
+            Memory.preference_drift_score.isnot(
+                None
+            )
+
+        )
+
+        .all()
+
+    )
+
+    low = 0
+
+    medium = 0
+
+    high = 0
+
+    for memory in memories:
+
+        score = memory.preference_drift_score
+
+        if score < 0.33:
+
+            low += 1
+
+        elif score < 0.66:
+
+            medium += 1
+
+        else:
+
+            high += 1
+
+    return {
+
+        "low": low,
+
+        "medium": medium,
+
+        "high": high,
+
+    }
+
+
+def get_tool_policy_violations(
+
+    db
+
+):
+
+    events = (
+
+        db.query(ToolPolicyEvent)
+
+        .filter(
+
+            ToolPolicyEvent.decision
+            ==
+            "BLOCK"
+
+        )
+
+        .count()
+
+    )
+
+    return events
+
+
+def get_tool_policy_analytics(
+
+    db
+
+):
+
+    events = (
+
+        db.query(ToolPolicyEvent)
+
+        .all()
+
+    )
+
+    if not events:
+
+        return {
+
+            "total_policies_evaluated": 0,
+
+            "blocked_policies": 0,
+
+            "average_risk_score": 0.0,
+
+            "unapproved_domain_violations": 0,
+
+            "bypass_verification_violations": 0,
+
+        }
+
+    blocked = sum(
+
+        1
+
+        for event in events
+
+        if event.decision == "BLOCK"
+
+    )
+
+    domain_violations = sum(
+
+        1
+
+        for event in events
+
+        if event.violation_reason.startswith(
+            "UNAPPROVED_DOMAIN"
+        )
+
+    )
+
+    bypass_violations = sum(
+
+        1
+
+        for event in events
+
+        if event.violation_reason
+        ==
+        "BYPASS_VERIFICATION"
+
+    )
+
+    risk_scores = [
+
+        event.risk_score
+
+        for event in events
+
+    ]
+
+    return {
+
+        "total_policies_evaluated": len(events),
+
+        "blocked_policies": blocked,
+
+        "average_risk_score": round(
+
+            sum(risk_scores)
+            /
+            len(risk_scores),
+
+            4
+
+        ),
+
+        "unapproved_domain_violations":
+            domain_violations,
+
+        "bypass_verification_violations":
+            bypass_violations,
+
+    }
+
+
+def get_tool_policy_timeline(
+
+    db,
+
+    limit=50
+
+):
+
+    events = (
+
+        db.query(ToolPolicyEvent)
+
+        .order_by(
+            ToolPolicyEvent.id.desc()
+        )
+
+        .limit(limit)
+
+        .all()
+
+    )
+
+    return [
+
+        {
+
+            "id": event.id,
+
+            "time": event.created_at.strftime(
+                "%Y-%m-%d %H:%M:%S"
+            ),
+
+            "policy_text": event.policy_text,
+
+            "violation_reason":
+                event.violation_reason,
+
+            "risk_score": round(
+                event.risk_score,
+                4
+            ),
+
+            "decision": event.decision,
+
+            "unapproved_domains":
+                event.unapproved_domains,
+
+        }
+
+        for event in events
+
+    ]
+
+
+def get_propagation_analytics(
+
+    db
+
+):
+
+    events = (
+
+        db.query(PropagationEvent)
+
+        .all()
+
+    )
+
+    if not events:
+
+        return {
+
+            "total_propagations": 0,
+
+            "blocked_propagations": 0,
+
+            "successful_propagations": 0,
+
+            "average_spread_rate": 0.0,
+
+            "average_spread_percentage": 0.0,
+
+            "max_spread_percentage": 0.0,
+
+        }
+
+    blocked = sum(
+
+        1
+
+        for event in events
+
+        if event.decision == "BLOCK"
+
+    )
+
+    allowed = sum(
+
+        1
+
+        for event in events
+
+        if event.decision == "ALLOW"
+
+    )
+
+    spread_rates = [
+
+        event.spread_score
+
+        for event in events
+
+    ]
+
+    spread_percentages = [
+
+        event.spread_percentage
+
+        for event in events
+
+    ]
+
+    return {
+
+        "total_propagations": len(events),
+
+        "blocked_propagations": blocked,
+
+        "successful_propagations": allowed,
+
+        "average_spread_rate": round(
+
+            sum(spread_rates)
+            /
+            len(spread_rates),
+
+            4
+
+        ),
+
+        "average_spread_percentage": round(
+
+            sum(spread_percentages)
+            /
+            len(spread_percentages),
+
+            2
+
+        ),
+
+        "max_spread_percentage": round(
+
+            max(spread_percentages),
+
+            2
+
+        ),
+
+    }
+
+
+def get_propagation_timeline(
+
+    db,
+
+    limit=50
+
+):
+
+    events = (
+
+        db.query(PropagationEvent)
+
+        .order_by(
+            PropagationEvent.id.desc()
+        )
+
+        .limit(limit)
+
+        .all()
+
+    )
+
+    return [
+
+        {
+
+            "id": event.id,
+
+            "time": event.created_at.strftime(
+                "%Y-%m-%d %H:%M:%S"
+            ),
+
+            "origin_agent":
+                event.origin_agent,
+
+            "target_agent":
+                event.target_agent,
+
+            "propagation_path":
+                event.propagation_path,
+
+            "spread_score": round(
+                event.spread_score,
+                4
+            ),
+
+            "spread_percentage": round(
+                event.spread_percentage,
+                2
+            ),
+
+            "poison_score": round(
+                event.poison_score,
+                4
+            ),
+
+            "attack_type":
+                event.attack_type,
+
+            "decision":
+                event.decision,
+
+            "fact": event.fact,
+
+            "root_memory_id":
+                event.root_memory_id,
+
+        }
+
+        for event in events
+
+    ]
+
+
+def get_propagation_attack_count(
+
+    db
+
+):
+
+    return (
+
+        db.query(PropagationEvent)
+
+        .filter(
+
+            PropagationEvent.attack_type
+            ==
+            "PROPAGATION_ATTACK"
+
+        )
+
+        .count()
+
+    )

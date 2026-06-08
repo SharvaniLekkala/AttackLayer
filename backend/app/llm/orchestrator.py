@@ -31,9 +31,101 @@ from app.audit.logger import (
 from app.memory.memory_normalizer import (
     normalize_memory
 )
+
 from app.security.memory_worthiness import (
     should_store_memory
 )
+
+
+def _build_memory_response(
+    memory_result,
+    stored_message="Got it. I'll remember that."
+):
+
+    if not memory_result:
+
+        return stored_message
+
+    status = memory_result.get("status")
+
+    if status == "blocked":
+
+        return (
+            "⚠ Memory update blocked.\n\n"
+            "Reason: "
+            + memory_result.get(
+                "attack_type",
+                "Security Policy"
+            )
+            + "\n\nOriginal memory preserved."
+        )
+
+    if status == "quarantined":
+
+        return (
+            "⚠ Memory sent for "
+            "security review."
+        )
+
+    if status == "duplicate":
+
+        return "I already know that."
+
+    return stored_message
+
+
+def _handle_memory_store(
+    db,
+    user_id,
+    message,
+    security_result,
+    stored_message="Got it. I'll remember that."
+):
+
+    normalized_fact = normalize_memory(
+        message
+    )
+
+    worth = should_store_memory(
+        normalized_fact
+    )
+
+    if not worth["store"]:
+
+        return {
+
+            "response": "Understood.",
+
+            "retrieved_memories": [],
+
+            "security": security_result,
+
+            "memory": None
+
+        }
+
+    memory_result = create_memory(
+        db=db,
+        user_id=user_id,
+        fact=normalized_fact
+    )
+
+    return {
+
+        "response": _build_memory_response(
+            memory_result,
+            stored_message=stored_message
+        ),
+
+        "retrieved_memories": [],
+
+        "security": security_result,
+
+        "memory": memory_result
+
+    }
+
+
 def process_user_message(
 
     db: Session,
@@ -48,24 +140,16 @@ def process_user_message(
     # Security Evaluation
     # =====================================
 
-    security_result = (
-
-        evaluate_security(
-            message
-        )
-
+    security_result = evaluate_security(
+        message,
+        db=db,
+        user_id=user_id
     )
 
-    operation = (
-
-        security_result[
-            "operation"
-        ]
-
-    )
+    operation = security_result["operation"]
 
     # =====================================
-    # Log EVERY Prompt
+    # Log Every Prompt
     # =====================================
 
     log_security_event(
@@ -74,63 +158,57 @@ def process_user_message(
 
         operation=operation,
 
-        decision=
+        decision=security_result["decision"],
 
-            security_result[
-                "decision"
-            ],
+        threat=security_result["threat"],
 
-        threat=
-
-            security_result[
-                "threat"
-            ],
-
-        risk_score=
-
-            security_result[
-                "risk_score"
-            ],
+        risk_score=security_result["risk_score"],
 
         payload=message
 
     )
 
     # =====================================
-    # Block
+    # Immediate Block
     # =====================================
 
-    if (
+    if security_result["decision"] == "BLOCK":
 
-        security_result[
-            "decision"
-        ]
+        block_response = (
+            "I can't retain sensitive "
+            "credentials or secret "
+            "information."
+        )
 
-        ==
+        if security_result.get(
+            "tool_policy_type"
+        ):
 
-        "BLOCK"
+            block_response = (
+                "⚠ Unsafe tool policy blocked.\n\n"
+                "Reason: TOOL_POLICY_POISONING"
+            )
 
-    ):
+            violation = security_result.get(
+                "tool_policy_violation"
+            )
+
+            if violation:
+
+                block_response += (
+                    "\n"
+                    + violation
+                )
 
         return {
 
-            "response":
+            "response": block_response,
 
-                "I can't retain sensitive "
-                "credentials or secret "
-                "information.",
+            "retrieved_memories": [],
 
-            "retrieved_memories":
+            "security": security_result,
 
-                [],
-
-            "security":
-
-                security_result,
-
-            "memory":
-
-                None
+            "memory": None
 
         }
 
@@ -138,57 +216,26 @@ def process_user_message(
     # General Chat
     # =====================================
 
-    if (
+    if operation == "GENERAL_CHAT":
 
-        operation
-
-        ==
-
-        "GENERAL_CHAT"
-
-    ):
-
-        llm_response = (
-
-            generate_response(
-
-                query=message,
-
-                secure_context=""
-
-            )
-
+        llm_response = generate_response(
+            query=message,
+            secure_context=""
         )
 
-        guard_result = (
-
-            filter_response(
-
-                llm_response
-
-            )
-
+        guard_result = filter_response(
+            llm_response
         )
 
         return {
 
-            "response":
+            "response": guard_result["response"],
 
-                guard_result[
-                    "response"
-                ],
+            "retrieved_memories": [],
 
-            "retrieved_memories":
+            "security": security_result,
 
-                [],
-
-            "security":
-
-                security_result,
-
-            "memory":
-
-                None
+            "memory": None
 
         }
 
@@ -196,91 +243,41 @@ def process_user_message(
     # Memory Read
     # =====================================
 
-    if (
+    if operation == "READ":
 
-        operation
-
-        ==
-
-        "READ"
-
-    ):
-
-        retrieval_result = (
-
-            retrieve_memories(
-
-                db=db,
-
-                user_id=user_id,
-
-                query=message
-
-            )
-
+        retrieval_result = retrieve_memories(
+            db=db,
+            user_id=user_id,
+            query=message
         )
 
-        secure_context = (
-
-            build_secure_context(
-
-                query=message,
-
-                safe_memories=
-
-                    retrieval_result[
-                        "safe_memories"
-                    ]
-
-            )
-
+        secure_context = build_secure_context(
+            query=message,
+            safe_memories=retrieval_result[
+                "safe_memories"
+            ]
         )
 
-        llm_response = (
-
-            generate_response(
-
-                query=message,
-
-                secure_context=
-
-                    secure_context
-
-            )
-
+        llm_response = generate_response(
+            query=message,
+            secure_context=secure_context
         )
 
-        guard_result = (
-
-            filter_response(
-
-                llm_response
-
-            )
-
+        guard_result = filter_response(
+            llm_response
         )
 
         return {
 
-            "response":
+            "response": guard_result["response"],
 
-                guard_result[
-                    "response"
-                ],
+            "retrieved_memories": retrieval_result[
+                "safe_memories"
+            ],
 
-            "retrieved_memories":
+            "security": security_result,
 
-                retrieval_result[
-                    "safe_memories"
-                ],
-
-            "security":
-
-                security_result,
-
-            "memory":
-
-                None
+            "memory": None
 
         }
 
@@ -288,189 +285,53 @@ def process_user_message(
     # Memory Write
     # =====================================
 
-    if (
+    if operation == "WRITE":
 
-        operation
-
-        ==
-
-        "WRITE"
-
-    ):
-
-        normalized_fact = (
-
-            normalize_memory(
-
-                message
-
-            )
-
+        return _handle_memory_store(
+            db=db,
+            user_id=user_id,
+            message=message,
+            security_result=security_result
         )
-        worth = should_store_memory(
-
-            normalized_fact
-
-        )
-
-        if not worth["store"]:
-
-            return {
-
-                "response":
-
-                    "Understood.",
-
-                "retrieved_memories":
-
-                    [],
-
-                "security":
-
-                        security_result,
-
-                "memory":
-
-                    None
-
-            }
-        memory_result = (
-
-            create_memory(
-
-                db=db,
-
-                user_id=user_id,
-
-                fact=normalized_fact
-
-            )
-
-        )
-
-        return {
-
-            "response":
-
-                "Got it. "
-                "I'll remember that.",
-
-            "retrieved_memories":
-
-                [],
-
-            "security":
-
-                security_result,
-
-            "memory":
-
-                memory_result
-
-        }
 
     # =====================================
     # Memory Update
     # =====================================
 
-    if (
+    if operation == "UPDATE":
 
-        operation
-
-        ==
-
-        "UPDATE"
-
-    ):
-
-        normalized_fact = (
-
-    normalize_memory(
-
-                message
-
+        return _handle_memory_store(
+            db=db,
+            user_id=user_id,
+            message=message,
+            security_result=security_result,
+            stored_message=(
+                "Got it. I've updated "
+                "your memory."
             )
-
         )
-
-        memory_result = (
-
-            create_memory(
-
-                db=db,
-
-                user_id=user_id,
-
-                fact=normalized_fact
-
-            )
-
-)
-        return {
-
-            "response":
-
-                "Got it. "
-                "I've updated that information.",
-
-            "retrieved_memories":
-
-                [],
-
-            "security":
-
-                security_result,
-
-            "memory":
-
-                memory_result
-
-        }
 
     # =====================================
     # Fallback
     # =====================================
 
-    llm_response = (
-
-        generate_response(
-
-            query=message,
-
-            secure_context=""
-
-        )
-
+    llm_response = generate_response(
+        query=message,
+        secure_context=""
     )
 
-    guard_result = (
-
-        filter_response(
-
-            llm_response
-
-        )
-
+    guard_result = filter_response(
+        llm_response
     )
 
     return {
 
-        "response":
+        "response": guard_result["response"],
 
-            guard_result[
-                "response"
-            ],
+        "retrieved_memories": [],
 
-        "retrieved_memories":
+        "security": security_result,
 
-            [],
-
-        "security":
-
-            security_result,
-
-        "memory":
-
-            None
+        "memory": None
 
     }
