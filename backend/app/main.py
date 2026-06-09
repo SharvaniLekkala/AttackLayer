@@ -37,12 +37,18 @@ from app.api.propagation import (
 from app.api.research import (
     router as research_router
 )
+from app.api.evaluation import (
+    router as evaluation_router
+)
+from app.database.migrate import run_migrations
+
 app = FastAPI(
     title="AttackLayer",
     description="Semantic Security Firewall for Long-Term Memory in LLM Agents",
-    version="1.0.0"
+    version="2.0.0"
 )
 Base.metadata.create_all(bind=engine)
+run_migrations()
 app.include_router(memory_router)
 app.include_router(classifier_router)
 app.include_router(
@@ -78,6 +84,9 @@ app.include_router(
 app.include_router(
     research_router
 )
+app.include_router(
+    evaluation_router
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -91,7 +100,7 @@ async def root():
     return {
         "project": "AttackLayer",
         "status": "running",
-        "version": "1.0.0"
+        "version": "2.0.0"
     }
 
 @app.get("/health")

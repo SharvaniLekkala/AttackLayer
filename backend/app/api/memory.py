@@ -85,12 +85,21 @@ def all_memories(
                 memory.poison_flag,
 
             "status":
-                "ACTIVE"
-                if memory.active
-                else "INACTIVE",
+                getattr(memory, "status", None)
+                or ("ACTIVE" if memory.active else "INACTIVE"),
 
             "source":
-                memory.source
+                memory.source,
+
+            "importance_score": round(
+                getattr(memory, "importance_score", 0.5) or 0.5, 4
+            ),
+
+            "verification_count":
+                getattr(memory, "verification_count", 0) or 0,
+
+            "usage_count":
+                getattr(memory, "usage_count", 0) or 0,
         })
 
     return result

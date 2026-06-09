@@ -56,12 +56,39 @@
     margin-bottom: 12px;
 }
 
-.panel h2 {
-    color: #22c55e;
+.panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     margin-bottom: 10px;
-    font-size: 15px;
     border-bottom: 1px solid #1e293b;
     padding-bottom: 8px;
+    gap: 8px;
+}
+
+.panel h2,
+.panel-header h2 {
+    color: #22c55e;
+    margin-bottom: 0;
+    font-size: 15px;
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.csv-download-btn {
+    background: transparent;
+    color: #22c55e;
+    border: 1px solid #22c55e;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.csv-download-btn:hover {
+    background: #14532d;
+    color: white;
 }
 
 .dashboard-table {
