@@ -88,6 +88,31 @@ class Memory(Base):
         nullable=True
     )
 
+    importance_score = Column(
+        Float,
+        default=0.50
+    )
+
+    verification_count = Column(
+        Integer,
+        default=0
+    )
+
+    usage_count = Column(
+        Integer,
+        default=0
+    )
+
+    attack_history = Column(
+        String,
+        default=""
+    )
+
+    status = Column(
+        String,
+        default="ACTIVE"
+    )
+
     created_at = Column(
         DateTime,
         default=datetime.utcnow
@@ -433,6 +458,81 @@ class AuditEvent(Base):
         nullable=False
     )
 
+    intent = Column(
+        String,
+        default="UNKNOWN"
+    )
+
+    intent_confidence = Column(
+        Float,
+        default=0.0
+    )
+
+    attack_type = Column(
+        String,
+        default="SAFE"
+    )
+
+    attack_confidence = Column(
+        Float,
+        default=0.0
+    )
+
+    risk_level = Column(
+        String,
+        default="LOW"
+    )
+
+    retrieved_memories = Column(
+        String,
+        default=""
+    )
+
+    memories_used = Column(
+        String,
+        default=""
+    )
+
+    poison_detected = Column(
+        Boolean,
+        default=False
+    )
+
+    quarantine_status = Column(
+        String,
+        default="NONE"
+    )
+
+    response_confidence = Column(
+        Float,
+        default=0.0
+    )
+
+    memory_confidence = Column(
+        Float,
+        default=0.0
+    )
+
+    security_confidence = Column(
+        Float,
+        default=0.0
+    )
+
+    execution_time_ms = Column(
+        Float,
+        default=0.0
+    )
+
+    final_decision = Column(
+        String,
+        default="ALLOW"
+    )
+
+    explanation = Column(
+        String,
+        default=""
+    )
+
     created_at = Column(
         DateTime,
         default=datetime.utcnow
@@ -491,3 +591,63 @@ class MemoryHistory(Base):
         DateTime,
         default=datetime.utcnow
     )
+
+
+# =====================================================
+# V2 REFLECTION LOGS
+# =====================================================
+
+class ReflectionLog(Base):
+    __tablename__ = "reflection_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    query = Column(String, default="")
+
+    answer_supported = Column(Boolean, default=True)
+
+    retrieval_success = Column(Boolean, default=False)
+
+    low_trust_memory_used = Column(Boolean, default=False)
+
+    attack_bypass_suspected = Column(Boolean, default=False)
+
+    issues = Column(String, default="")
+
+    improvements = Column(String, default="")
+
+    response_confidence = Column(Float, default=0.0)
+
+    memory_confidence = Column(Float, default=0.0)
+
+    security_confidence = Column(Float, default=0.0)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+# =====================================================
+# V2 CLASSIFICATION STATS (LEARNING)
+# =====================================================
+
+class ClassificationStat(Base):
+    __tablename__ = "classification_stats"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    component = Column(String, nullable=False)
+
+    predicted_label = Column(String, nullable=False)
+
+    confidence = Column(Float, default=0.0)
+
+    was_blocked = Column(Boolean, default=False)
+
+    user_corrected = Column(Boolean, default=False)
+
+    correction_label = Column(String, nullable=True)
+
+    is_false_positive = Column(Boolean, default=False)
+
+    is_false_negative = Column(Boolean, default=False)
+
+    created_at = Column(DateTime, default=datetime.utcnow)

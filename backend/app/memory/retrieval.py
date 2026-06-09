@@ -1,3 +1,6 @@
+import re
+from datetime import datetime
+
 from sqlalchemy.orm import Session
 
 from app.database.models import Memory
@@ -14,222 +17,178 @@ from app.security.retrieval_gaurd import (
     filter_memories
 )
 
+from app.security.semantic_engine import (
+    get_embedding,
+    cosine_similarity,
+)
 
-def retrieve_memories(
+WEIGHTS = {
+    "semantic": 0.45,
+    "keyword": 0.20,
+    "trust": 0.15,
+    "importance": 0.10,
+    "recency": 0.10,
+}
 
-    db: Session,
 
-    user_id: str,
+def _keyword_score(query, fact):
+    query_tokens = set(re.findall(r"\w+", query.lower()))
+    fact_tokens = set(re.findall(r"\w+", fact.lower()))
+    if not query_tokens:
+        return 0.0
+    overlap = len(query_tokens & fact_tokens)
+    return round(overlap / len(query_tokens), 4)
 
-    query: str,
 
-    top_k: int = 5
+def _recency_score(updated_at):
+    if not updated_at:
+        return 0.5
+    age_days = (datetime.utcnow() - updated_at).total_seconds() / 86400
+    return round(max(0.1, 1.0 - age_days / 365), 4)
 
-):
 
-    # ==========================
-    # Generate Query Embedding
-    # ==========================
+def _hybrid_score(memory, query, query_embedding):
+    fact_embedding = get_embedding(memory.fact)
+    semantic = cosine_similarity(query_embedding, fact_embedding)
+    keyword = _keyword_score(query, memory.fact)
+    trust = memory.trust_score or 0.5
+    importance = getattr(memory, "importance_score", None) or 0.5
+    recency = _recency_score(memory.updated_at)
 
-    query_embedding = generate_embedding(
-        query
+    final = (
+        WEIGHTS["semantic"] * semantic
+        + WEIGHTS["keyword"] * keyword
+        + WEIGHTS["trust"] * trust
+        + WEIGHTS["importance"] * importance
+        + WEIGHTS["recency"] * recency
     )
 
-    # ==========================
-    # Semantic Search
-    # ==========================
+    return {
+        "final_score": round(final, 4),
+        "semantic": round(semantic, 4),
+        "keyword": keyword,
+        "trust": round(trust, 4),
+        "importance": round(importance, 4),
+        "recency": recency,
+    }
+
+
+def retrieve_memories(
+    db: Session,
+    user_id: str,
+    query: str,
+    top_k: int = 5
+):
+    query_embedding = generate_embedding(query)
 
     vector_results = semantic_search(
-
         embedding=query_embedding,
-
-        top_k=top_k
-
+        top_k=top_k * 3,
     )
 
     memory_ids = []
-
     if (
-
         vector_results
-
-        and
-
-        "ids" in vector_results
-
-        and
-
-        len(
-            vector_results["ids"]
-        ) > 0
-
+        and "ids" in vector_results
+        and len(vector_results["ids"]) > 0
     ):
-
-        for memory_id in (
-
-            vector_results["ids"][0]
-
-        ):
-
+        for memory_id in vector_results["ids"][0]:
             try:
-
-                memory_ids.append(
-                    int(memory_id)
-                )
-
-            except:
-
+                memory_ids.append(int(memory_id))
+            except ValueError:
                 pass
 
-    # ==========================
-    # Load Semantic Matches
-    # ==========================
-
-    memories = (
-
-        db.query(Memory)
-
-        .filter(
-
-            Memory.id.in_(
-                memory_ids
-            ),
-
-            Memory.user_id
-            ==
-            user_id,
-
-            Memory.active
-            ==
-            True
-
-        )
-
-        .all()
-
-    )
-    # ==========================
-    # Fallback Personal Memory
-    # ==========================
-
-    if len(memories) < 3:
-
-        additional = (
-
+    memories = []
+    if memory_ids:
+        memories = (
             db.query(Memory)
-
             .filter(
-
-                Memory.user_id
-                ==
-                user_id,
-
-                Memory.active
-                ==
-                True
-
+                Memory.id.in_(memory_ids),
+                Memory.user_id == user_id,
+                Memory.active == True,
             )
-
-            .order_by(
-
-                Memory.id.desc()
-
-            )
-
-            .limit(top_k)
-
             .all()
-
         )
 
-        existing = {
-
-            memory.id
-
-            for memory
-
-            in memories
-
-        }
-
+    if len(memories) < top_k:
+        additional = (
+            db.query(Memory)
+            .filter(
+                Memory.user_id == user_id,
+                Memory.active == True,
+            )
+            .order_by(Memory.updated_at.desc())
+            .limit(top_k * 2)
+            .all()
+        )
+        existing = {memory.id for memory in memories}
         for memory in additional:
+            if memory.id not in existing:
+                memories.append(memory)
 
-            if (
+    ranked = []
+    for memory in memories:
+        scores = _hybrid_score(memory, query, query_embedding)
+        ranked.append({
+            "memory": memory,
+            "scores": scores,
+        })
 
-                memory.id
+    ranked.sort(key=lambda x: x["scores"]["final_score"], reverse=True)
+    ranked_memories = [item["memory"] for item in ranked[:top_k * 2]]
 
-                not in
+    security_result = filter_memories(ranked_memories, query)
 
-                existing
+    allowed = security_result["allowed_memories"]
+    allowed_ranked = sorted(
+        allowed,
+        key=lambda m: next(
+            (r["scores"]["final_score"] for r in ranked if r["memory"].id == m.id),
+            0.0,
+        ),
+        reverse=True,
+    )[:top_k]
 
-            ):
+    for memory in allowed_ranked:
+        if hasattr(memory, "usage_count"):
+            memory.usage_count = (memory.usage_count or 0) + 1
+    if allowed_ranked:
+        db.commit()
 
-                memories.append(
-                    memory
+    avg_score = (
+        round(
+            sum(
+                next(
+                    (r["scores"]["final_score"] for r in ranked if r["memory"].id == m.id),
+                    0.0,
                 )
-
-    # ==========================
-    # Retrieval Security
-    # ==========================
-
-    security_result = (
-
-        filter_memories(
-
-            memories,
-
-            query
-
+                for m in allowed_ranked
+            ) / len(allowed_ranked),
+            4,
         )
-
+        if allowed_ranked else 0.0
     )
-
-    # ==========================
-    # Response
-    # ==========================
 
     return {
-
-        "query":
-
-            query,
-
-        "semantic_matches":
-
-            len(
-                memories
-            ),
-
-        "safe_memories":
-
-            [
-
-                memory.fact
-
-                for memory
-
-                in
-
-                security_result[
-                    "allowed_memories"
-                ]
-
-            ],
-
-        "blocked_count":
-
-            len(
-
-                security_result[
-                    "blocked_memories"
-                ]
-
-            ),
-
-        "blocked_reasons":
-
-            security_result[
-                "blocked_reasons"
-            ]
-
+        "query": query,
+        "semantic_matches": len(memories),
+        "safe_memories": [memory.fact for memory in allowed_ranked],
+        "ranked_memories": [
+            {
+                "memory_id": m.id,
+                "content": m.fact,
+                "trust_score": round(m.trust_score, 4),
+                "importance_score": round(
+                    getattr(m, "importance_score", 0.5) or 0.5, 4
+                ),
+                "final_score": next(
+                    (r["scores"]["final_score"] for r in ranked if r["memory"].id == m.id),
+                    0.0,
+                ),
+            }
+            for m in allowed_ranked
+        ],
+        "blocked_count": len(security_result["blocked_memories"]),
+        "blocked_reasons": security_result["blocked_reasons"],
+        "retrieval_confidence": avg_score,
     }

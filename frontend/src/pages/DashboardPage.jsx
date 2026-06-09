@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import MemoryTable from "../components/dashboard/MemoryTable";
 import AuditTable from "../components/dashboard/AuditTable";
-import { getAllMemories, getAuditEvents } from "../api/attacklayer";
+import { getAllMemories, getAuditEvents, downloadCsv } from "../api/attacklayer";
 import "../styles/dashboard.css";
 
 function DashboardPage() {
@@ -42,12 +42,28 @@ function DashboardPage() {
             </div>
 
             <div className="panel">
-                <h2>MEMORY VAULT</h2>
+                <div className="panel-header">
+                    <h2>MEMORY VAULT</h2>
+                    <button
+                        className="csv-download-btn"
+                        onClick={() => downloadCsv("memory")}
+                    >
+                        Download CSV
+                    </button>
+                </div>
                 <MemoryTable memories={memories} />
             </div>
 
             <div className="panel">
-                <h2>RECENT ACTIVITY</h2>
+                <div className="panel-header">
+                    <h2>RECENT ACTIVITY</h2>
+                    <button
+                        className="csv-download-btn"
+                        onClick={() => downloadCsv("audit")}
+                    >
+                        Download CSV
+                    </button>
+                </div>
                 <AuditTable events={events.slice(0, 20)} />
             </div>
         </div>

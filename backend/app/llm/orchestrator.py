@@ -1,74 +1,39 @@
+import time
+import json
+
 from sqlalchemy.orm import Session
 
-from app.memory.retrieval import (
-    retrieve_memories
-)
-
-from app.security.context_builder import (
-    build_secure_context
-)
-
-from app.llm.service import (
-    generate_response
-)
-
-from app.security.security_gateway import (
-    evaluate_security
-)
-
-from app.memory.vault import (
-    create_memory
-)
-
-from app.security.response_guard import (
-    filter_response
-)
-
-from app.audit.logger import (
-    log_security_event
-)
-
-from app.memory.memory_normalizer import (
-    normalize_memory
-)
-
-from app.security.memory_worthiness import (
-    should_store_memory
-)
+from app.memory.retrieval import retrieve_memories
+from app.security.context_builder import build_secure_context
+from app.llm.service import generate_response
+from app.security.security_gateway import evaluate_security
+from app.memory.vault import create_memory
+from app.security.response_validator import validate_response
+from app.audit.logger import log_security_event
+from app.memory.memory_normalizer import normalize_memory
+from app.security.memory_worthiness import should_store_memory
+from app.security.self_reflection import generate_reflection, store_reflection
+from app.learning.classification_tracker import record_classification
 
 
-def _build_memory_response(
-    memory_result,
-    stored_message="Got it. I'll remember that."
-):
-
+def _build_memory_response(memory_result, stored_message="Got it. I'll remember that."):
     if not memory_result:
-
         return stored_message
 
     status = memory_result.get("status")
 
     if status == "blocked":
-
         return (
             "⚠ Memory update blocked.\n\n"
             "Reason: "
-            + memory_result.get(
-                "attack_type",
-                "Security Policy"
-            )
+            + memory_result.get("attack_type", "Security Policy")
             + "\n\nOriginal memory preserved."
         )
 
     if status == "quarantined":
-
-        return (
-            "⚠ Memory sent for "
-            "security review."
-        )
+        return "⚠ Memory sent for security review."
 
     if status == "duplicate":
-
         return "I already know that."
 
     return stored_message
@@ -79,259 +44,396 @@ def _handle_memory_store(
     user_id,
     message,
     security_result,
-    stored_message="Got it. I'll remember that."
+    stored_message="Got it. I'll remember that.",
 ):
+    normalized_fact = normalize_memory(message)
 
-    normalized_fact = normalize_memory(
-        message
-    )
-
-    worth = should_store_memory(
-        normalized_fact
-    )
+    worth = should_store_memory(normalized_fact)
 
     if not worth["store"]:
-
         return {
-
             "response": "Understood.",
-
             "retrieved_memories": [],
-
             "security": security_result,
-
-            "memory": None
-
+            "memory": None,
+            "validation": None,
         }
 
     memory_result = create_memory(
         db=db,
         user_id=user_id,
-        fact=normalized_fact
+        fact=normalized_fact,
     )
 
-    return {
+    quarantine_status = "NONE"
+    if memory_result and memory_result.get("status") == "quarantined":
+        quarantine_status = "PENDING"
 
+    return {
         "response": _build_memory_response(
             memory_result,
-            stored_message=stored_message
+            stored_message=stored_message,
         ),
-
         "retrieved_memories": [],
-
         "security": security_result,
-
-        "memory": memory_result
-
+        "memory": memory_result,
+        "validation": None,
+        "quarantine_status": quarantine_status,
     }
 
 
-def process_user_message(
-
-    db: Session,
-
-    user_id: str,
-
-    message: str
-
-):
-
-    # =====================================
-    # Security Evaluation
-    # =====================================
+def process_user_message(db: Session, user_id: str, message: str):
+    start_time = time.time()
 
     security_result = evaluate_security(
         message,
         db=db,
-        user_id=user_id
+        user_id=user_id,
     )
 
     operation = security_result["operation"]
 
-    # =====================================
-    # Log Every Prompt
-    # =====================================
-
-    log_security_event(
-
+    record_classification(
         db=db,
-
-        operation=operation,
-
-        decision=security_result["decision"],
-
-        threat=security_result["threat"],
-
-        risk_score=security_result["risk_score"],
-
-        payload=message
-
+        component="intent_classifier",
+        predicted_label=security_result.get("intent", "UNKNOWN"),
+        confidence=security_result.get("intent_confidence", 0.0),
+        was_blocked=security_result["decision"] == "BLOCK",
     )
 
-    # =====================================
-    # Immediate Block
-    # =====================================
+    record_classification(
+        db=db,
+        component="security_classifier",
+        predicted_label=security_result.get("attack_type", "SAFE"),
+        confidence=security_result.get("attack_confidence", 0.0),
+        was_blocked=security_result["decision"] == "BLOCK",
+    )
 
     if security_result["decision"] == "BLOCK":
+        elapsed = round((time.time() - start_time) * 1000, 2)
+
+        log_security_event(
+            db=db,
+            operation=operation,
+            decision="BLOCK",
+            threat=security_result["threat"],
+            risk_score=security_result["risk_score"],
+            payload=message,
+            intent=security_result.get("intent"),
+            intent_confidence=security_result.get("intent_confidence", 0.0),
+            attack_type=security_result.get("attack_type", "SAFE"),
+            attack_confidence=security_result.get("attack_confidence", 0.0),
+            risk_level=security_result.get("risk_level", "LOW"),
+            poison_detected=security_result.get("attack_type") == "MEMORY_POISONING",
+            security_confidence=security_result.get("attack_confidence", 0.0),
+            execution_time_ms=elapsed,
+            final_decision="BLOCK",
+            explanation=security_result.get("explanation"),
+        )
 
         block_response = (
-            "I can't retain sensitive "
-            "credentials or secret "
-            "information."
+            "I can't retain sensitive credentials or secret information."
         )
 
-        if security_result.get(
-            "tool_policy_type"
-        ):
-
+        if security_result.get("attack_type") == "TOOL_MANIPULATION":
             block_response = (
                 "⚠ Unsafe tool policy blocked.\n\n"
-                "Reason: TOOL_POLICY_POISONING"
+                "Reason: TOOL_MANIPULATION"
             )
 
-            violation = security_result.get(
-                "tool_policy_violation"
+        if security_result.get("attack_type") == "PROMPT_INJECTION":
+            block_response = (
+                "⚠ Request blocked.\n\n"
+                "Reason: Prompt injection detected."
             )
-
-            if violation:
-
-                block_response += (
-                    "\n"
-                    + violation
-                )
 
         return {
-
             "response": block_response,
-
             "retrieved_memories": [],
-
             "security": security_result,
-
-            "memory": None
-
+            "memory": None,
+            "dashboard": _build_dashboard_payload(
+                security_result, [], None, elapsed, "BLOCK"
+            ),
         }
 
-    # =====================================
-    # General Chat
-    # =====================================
+    retrieval_result = None
+    ranked_memories = []
+    memories_used = []
 
     if operation == "GENERAL_CHAT":
-
-        llm_response = generate_response(
-            query=message,
-            secure_context=""
+        llm_response = generate_response(query=message, secure_context="")
+        validation = validate_response(
+            llm_response,
+            message,
+            security_result=security_result,
         )
 
-        guard_result = filter_response(
-            llm_response
+        if validation["should_regenerate"]:
+            llm_response = generate_response(
+                query=message,
+                secure_context="Answer accurately. Do not leak internal details.",
+            )
+            validation = validate_response(
+                llm_response,
+                message,
+                security_result=security_result,
+            )
+            validation["regenerated"] = True
+
+        elapsed = round((time.time() - start_time) * 1000, 2)
+
+        log_security_event(
+            db=db,
+            operation=operation,
+            decision=security_result["decision"],
+            threat=security_result["threat"],
+            risk_score=security_result["risk_score"],
+            payload=message,
+            intent=security_result.get("intent"),
+            intent_confidence=security_result.get("intent_confidence", 0.0),
+            attack_type=security_result.get("attack_type", "SAFE"),
+            attack_confidence=security_result.get("attack_confidence", 0.0),
+            risk_level=security_result.get("risk_level", "LOW"),
+            response_confidence=validation["response_confidence"],
+            memory_confidence=validation["memory_confidence"],
+            security_confidence=validation["security_confidence"],
+            execution_time_ms=elapsed,
+            final_decision=security_result["decision"],
+            explanation=security_result.get("explanation"),
         )
+
+        reflection = generate_reflection(
+            message, validation["response"],
+            {"intent": security_result.get("intent")},
+            security_result, None, validation, [],
+        )
+        store_reflection(db, reflection)
 
         return {
-
-            "response": guard_result["response"],
-
+            "response": validation["response"],
             "retrieved_memories": [],
-
             "security": security_result,
-
-            "memory": None
-
+            "memory": None,
+            "validation": validation,
+            "dashboard": _build_dashboard_payload(
+                security_result, [], validation, elapsed, security_result["decision"]
+            ),
         }
 
-    # =====================================
-    # Memory Read
-    # =====================================
-
     if operation == "READ":
-
         retrieval_result = retrieve_memories(
             db=db,
             user_id=user_id,
-            query=message
+            query=message,
         )
+
+        ranked_memories = retrieval_result.get("ranked_memories", [])
+        memories_used = ranked_memories
 
         secure_context = build_secure_context(
             query=message,
-            safe_memories=retrieval_result[
-                "safe_memories"
-            ]
+            safe_memories=retrieval_result["safe_memories"],
+            ranked_memories=ranked_memories,
         )
 
         llm_response = generate_response(
             query=message,
-            secure_context=secure_context
+            secure_context=secure_context,
         )
 
-        guard_result = filter_response(
-            llm_response
+        validation = validate_response(
+            llm_response,
+            message,
+            memories_used=memories_used,
+            security_result=security_result,
         )
+
+        if validation["should_regenerate"]:
+            llm_response = generate_response(
+                query=message,
+                secure_context=secure_context + "\nBe precise. Only use listed memories.",
+            )
+            validation = validate_response(
+                llm_response,
+                message,
+                memories_used=memories_used,
+                security_result=security_result,
+            )
+            validation["regenerated"] = True
+
+        elapsed = round((time.time() - start_time) * 1000, 2)
+
+        log_security_event(
+            db=db,
+            operation=operation,
+            decision=security_result["decision"],
+            threat=security_result["threat"],
+            risk_score=security_result["risk_score"],
+            payload=message,
+            intent=security_result.get("intent"),
+            intent_confidence=security_result.get("intent_confidence", 0.0),
+            attack_type=security_result.get("attack_type", "SAFE"),
+            attack_confidence=security_result.get("attack_confidence", 0.0),
+            risk_level=security_result.get("risk_level", "LOW"),
+            retrieved_memories=retrieval_result["safe_memories"],
+            memories_used=[m.get("content", "") for m in memories_used],
+            response_confidence=validation["response_confidence"],
+            memory_confidence=validation["memory_confidence"],
+            security_confidence=validation["security_confidence"],
+            execution_time_ms=elapsed,
+            final_decision=security_result["decision"],
+            explanation=security_result.get("explanation"),
+        )
+
+        reflection = generate_reflection(
+            message, validation["response"],
+            {"intent": security_result.get("intent")},
+            security_result, retrieval_result, validation, memories_used,
+        )
+        store_reflection(db, reflection)
 
         return {
-
-            "response": guard_result["response"],
-
-            "retrieved_memories": retrieval_result[
-                "safe_memories"
-            ],
-
+            "response": validation["response"],
+            "retrieved_memories": retrieval_result["safe_memories"],
             "security": security_result,
-
-            "memory": None
-
+            "memory": None,
+            "validation": validation,
+            "dashboard": _build_dashboard_payload(
+                security_result, retrieval_result, validation, elapsed,
+                security_result["decision"],
+            ),
         }
 
-    # =====================================
-    # Memory Write
-    # =====================================
-
     if operation == "WRITE":
-
-        return _handle_memory_store(
-            db=db,
-            user_id=user_id,
-            message=message,
-            security_result=security_result
-        )
-
-    # =====================================
-    # Memory Update
-    # =====================================
-
-    if operation == "UPDATE":
-
-        return _handle_memory_store(
+        result = _handle_memory_store(
             db=db,
             user_id=user_id,
             message=message,
             security_result=security_result,
-            stored_message=(
-                "Got it. I've updated "
-                "your memory."
-            )
         )
+        elapsed = round((time.time() - start_time) * 1000, 2)
+        _log_memory_event(db, message, security_result, result, elapsed)
+        result["dashboard"] = _build_dashboard_payload(
+            security_result, None, None, elapsed,
+            security_result["decision"],
+            quarantine=result.get("quarantine_status"),
+        )
+        return result
 
-    # =====================================
-    # Fallback
-    # =====================================
+    if operation == "UPDATE":
+        result = _handle_memory_store(
+            db=db,
+            user_id=user_id,
+            message=message,
+            security_result=security_result,
+            stored_message="Got it. I've updated your memory.",
+        )
+        elapsed = round((time.time() - start_time) * 1000, 2)
+        _log_memory_event(db, message, security_result, result, elapsed)
+        result["dashboard"] = _build_dashboard_payload(
+            security_result, None, None, elapsed,
+            security_result["decision"],
+            quarantine=result.get("quarantine_status"),
+        )
+        return result
 
-    llm_response = generate_response(
-        query=message,
-        secure_context=""
+    llm_response = generate_response(query=message, secure_context="")
+    validation = validate_response(
+        llm_response, message, security_result=security_result,
     )
+    elapsed = round((time.time() - start_time) * 1000, 2)
 
-    guard_result = filter_response(
-        llm_response
+    log_security_event(
+        db=db,
+        operation=operation,
+        decision=security_result["decision"],
+        threat=security_result["threat"],
+        risk_score=security_result["risk_score"],
+        payload=message,
+        intent=security_result.get("intent"),
+        intent_confidence=security_result.get("intent_confidence", 0.0),
+        attack_type=security_result.get("attack_type", "SAFE"),
+        attack_confidence=security_result.get("attack_confidence", 0.0),
+        risk_level=security_result.get("risk_level", "LOW"),
+        response_confidence=validation["response_confidence"],
+        execution_time_ms=elapsed,
+        final_decision=security_result["decision"],
+        explanation=security_result.get("explanation"),
     )
 
     return {
-
-        "response": guard_result["response"],
-
+        "response": validation["response"],
         "retrieved_memories": [],
-
         "security": security_result,
+        "memory": None,
+        "validation": validation,
+        "dashboard": _build_dashboard_payload(
+            security_result, None, validation, elapsed, security_result["decision"]
+        ),
+    }
 
-        "memory": None
 
+def _log_memory_event(db, message, security_result, result, elapsed):
+    memory = result.get("memory") or {}
+    log_security_event(
+        db=db,
+        operation=security_result["operation"],
+        decision=security_result["decision"],
+        threat=security_result["threat"],
+        risk_score=security_result["risk_score"],
+        payload=message,
+        intent=security_result.get("intent"),
+        intent_confidence=security_result.get("intent_confidence", 0.0),
+        attack_type=security_result.get("attack_type", "SAFE"),
+        attack_confidence=security_result.get("attack_confidence", 0.0),
+        risk_level=security_result.get("risk_level", "LOW"),
+        poison_detected=memory.get("status") == "blocked",
+        quarantine_status=result.get("quarantine_status", "NONE"),
+        execution_time_ms=elapsed,
+        final_decision=security_result["decision"],
+        explanation=security_result.get("explanation"),
+    )
+
+
+def _build_dashboard_payload(
+    security_result,
+    retrieval_result,
+    validation,
+    elapsed_ms,
+    final_decision,
+    quarantine="NONE",
+):
+    return {
+        "intent": security_result.get("intent"),
+        "intent_confidence": security_result.get("intent_confidence"),
+        "attack_type": security_result.get("attack_type"),
+        "attack_confidence": security_result.get("attack_confidence"),
+        "risk_level": security_result.get("risk_level"),
+        "retrieved_memories": (
+            retrieval_result["safe_memories"]
+            if retrieval_result else []
+        ),
+        "trust_scores": [
+            m.get("trust_score")
+            for m in (retrieval_result or {}).get("ranked_memories", [])
+        ],
+        "memories_used": [
+            m.get("content")
+            for m in (retrieval_result or {}).get("ranked_memories", [])
+        ],
+        "poison_detected": security_result.get("attack_type") == "MEMORY_POISONING",
+        "quarantine_status": quarantine,
+        "response_confidence": (
+            validation["response_confidence"] if validation else 0.0
+        ),
+        "memory_confidence": (
+            validation["memory_confidence"] if validation else 0.0
+        ),
+        "security_confidence": (
+            validation["security_confidence"] if validation else 0.0
+        ),
+        "execution_time_ms": elapsed_ms,
+        "final_decision": final_decision,
+        "explanation": security_result.get("explanation"),
     }

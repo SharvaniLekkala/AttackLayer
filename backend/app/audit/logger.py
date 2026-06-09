@@ -1,37 +1,56 @@
-from app.database.models import (
-    AuditEvent
-)
+import json
+
+from app.database.models import AuditEvent
 
 
 def log_security_event(
-
     db,
-
     operation,
     decision,
     threat,
     risk_score,
-    payload
-
+    payload,
+    intent=None,
+    intent_confidence=0.0,
+    attack_type="SAFE",
+    attack_confidence=0.0,
+    risk_level="LOW",
+    retrieved_memories=None,
+    memories_used=None,
+    poison_detected=False,
+    quarantine_status="NONE",
+    response_confidence=0.0,
+    memory_confidence=0.0,
+    security_confidence=0.0,
+    execution_time_ms=0.0,
+    final_decision="ALLOW",
+    explanation=None,
 ):
-
     event = AuditEvent(
-
         operation=operation,
-
         decision=decision,
-
         threat=threat,
-
         risk_score=risk_score,
-
-        payload=payload
+        payload=payload,
+        intent=intent or "UNKNOWN",
+        intent_confidence=intent_confidence,
+        attack_type=attack_type,
+        attack_confidence=attack_confidence,
+        risk_level=risk_level,
+        retrieved_memories=json.dumps(retrieved_memories or []),
+        memories_used=json.dumps(memories_used or []),
+        poison_detected=poison_detected,
+        quarantine_status=quarantine_status,
+        response_confidence=response_confidence,
+        memory_confidence=memory_confidence,
+        security_confidence=security_confidence,
+        execution_time_ms=execution_time_ms,
+        final_decision=final_decision,
+        explanation=json.dumps(explanation or {}),
     )
 
     db.add(event)
-
     db.commit()
-
     db.refresh(event)
 
     return event
