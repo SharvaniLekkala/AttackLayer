@@ -21,13 +21,15 @@ from app.security.semantic_engine import (
     get_embedding,
     cosine_similarity,
 )
+from app.security.semantic_classifier import classify_query_categories
 
 WEIGHTS = {
-    "semantic": 0.45,
-    "keyword": 0.20,
+    "category": 0.35,
+    "semantic": 0.30,
+    "keyword": 0.10,
     "trust": 0.15,
-    "importance": 0.10,
-    "recency": 0.10,
+    "importance": 0.05,
+    "recency": 0.05,
 }
 
 
@@ -47,16 +49,18 @@ def _recency_score(updated_at):
     return round(max(0.1, 1.0 - age_days / 365), 4)
 
 
-def _hybrid_score(memory, query, query_embedding):
+def _hybrid_score(memory, query, query_embedding, target_categories):
     fact_embedding = get_embedding(memory.fact)
     semantic = cosine_similarity(query_embedding, fact_embedding)
     keyword = _keyword_score(query, memory.fact)
     trust = memory.trust_score or 0.5
     importance = getattr(memory, "importance_score", None) or 0.5
     recency = _recency_score(memory.updated_at)
+    category = 1.0 if memory.category in target_categories else 0.0
 
     final = (
-        WEIGHTS["semantic"] * semantic
+        WEIGHTS["category"] * category
+        + WEIGHTS["semantic"] * semantic
         + WEIGHTS["keyword"] * keyword
         + WEIGHTS["trust"] * trust
         + WEIGHTS["importance"] * importance
@@ -65,6 +69,7 @@ def _hybrid_score(memory, query, query_embedding):
 
     return {
         "final_score": round(final, 4),
+        "category": category,
         "semantic": round(semantic, 4),
         "keyword": keyword,
         "trust": round(trust, 4),
@@ -77,8 +82,10 @@ def retrieve_memories(
     db: Session,
     user_id: str,
     query: str,
-    top_k: int = 5
+    top_k: int = 5,
+    target_categories=None,
 ):
+    target_categories = target_categories or classify_query_categories(query)
     query_embedding = generate_embedding(query)
 
     vector_results = semantic_search(
@@ -106,6 +113,7 @@ def retrieve_memories(
                 Memory.id.in_(memory_ids),
                 Memory.user_id == user_id,
                 Memory.active == True,
+                Memory.category.in_(target_categories),
             )
             .all()
         )
@@ -116,6 +124,7 @@ def retrieve_memories(
             .filter(
                 Memory.user_id == user_id,
                 Memory.active == True,
+                Memory.category.in_(target_categories),
             )
             .order_by(Memory.updated_at.desc())
             .limit(top_k * 2)
@@ -128,7 +137,7 @@ def retrieve_memories(
 
     ranked = []
     for memory in memories:
-        scores = _hybrid_score(memory, query, query_embedding)
+        scores = _hybrid_score(memory, query, query_embedding, target_categories)
         ranked.append({
             "memory": memory,
             "scores": scores,
@@ -171,12 +180,14 @@ def retrieve_memories(
 
     return {
         "query": query,
+        "target_categories": target_categories,
         "semantic_matches": len(memories),
         "safe_memories": [memory.fact for memory in allowed_ranked],
         "ranked_memories": [
             {
                 "memory_id": m.id,
                 "content": m.fact,
+                "category": m.category,
                 "trust_score": round(m.trust_score, 4),
                 "importance_score": round(
                     getattr(m, "importance_score", 0.5) or 0.5, 4

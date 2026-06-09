@@ -14,6 +14,30 @@ from app.memory.memory_normalizer import normalize_memory
 from app.security.memory_worthiness import should_store_memory
 from app.security.self_reflection import generate_reflection, store_reflection
 from app.learning.classification_tracker import record_classification
+from app.security.semantic_classifier import classify_query_categories
+
+
+def _should_use_personal_context(message):
+    lowered = message.lower()
+    return any(
+        phrase in lowered
+        for phrase in (
+            "suggest",
+            "recommend",
+            "for me",
+            "based on my",
+            "suited to me",
+        )
+    )
+
+
+def _retrieve_context(db, user_id, message):
+    return retrieve_memories(
+        db=db,
+        user_id=user_id,
+        query=message,
+        target_categories=classify_query_categories(message, limit=2),
+    )
 
 
 def _build_memory_response(memory_result, stored_message="Got it. I'll remember that."):
@@ -124,6 +148,8 @@ def process_user_message(db: Session, user_id: str, message: str):
             attack_type=security_result.get("attack_type", "SAFE"),
             attack_confidence=security_result.get("attack_confidence", 0.0),
             risk_level=security_result.get("risk_level", "LOW"),
+            memory_category=security_result.get("category", "GENERAL"),
+            conflict_status="NONE",
             poison_detected=security_result.get("attack_type") == "MEMORY_POISONING",
             security_confidence=security_result.get("attack_confidence", 0.0),
             execution_time_ms=elapsed,
@@ -162,7 +188,18 @@ def process_user_message(db: Session, user_id: str, message: str):
     memories_used = []
 
     if operation == "GENERAL_CHAT":
-        llm_response = generate_response(query=message, secure_context="")
+        secure_context = ""
+        if _should_use_personal_context(message):
+            retrieval_result = _retrieve_context(db, user_id, message)
+            ranked_memories = retrieval_result.get("ranked_memories", [])
+            memories_used = ranked_memories
+            secure_context = build_secure_context(
+                query=message,
+                safe_memories=retrieval_result["safe_memories"],
+                ranked_memories=ranked_memories,
+            )
+
+        llm_response = generate_response(query=message, secure_context=secure_context)
         validation = validate_response(
             llm_response,
             message,
@@ -172,7 +209,10 @@ def process_user_message(db: Session, user_id: str, message: str):
         if validation["should_regenerate"]:
             llm_response = generate_response(
                 query=message,
-                secure_context="Answer accurately. Do not leak internal details.",
+                secure_context=(
+                    secure_context
+                    + "\nAnswer accurately. Do not leak internal details."
+                ),
             )
             validation = validate_response(
                 llm_response,
@@ -195,12 +235,19 @@ def process_user_message(db: Session, user_id: str, message: str):
             attack_type=security_result.get("attack_type", "SAFE"),
             attack_confidence=security_result.get("attack_confidence", 0.0),
             risk_level=security_result.get("risk_level", "LOW"),
+            memory_category=security_result.get("category", "GENERAL"),
+            conflict_status="NONE",
             response_confidence=validation["response_confidence"],
             memory_confidence=validation["memory_confidence"],
             security_confidence=validation["security_confidence"],
             execution_time_ms=elapsed,
             final_decision=security_result["decision"],
             explanation=security_result.get("explanation"),
+            retrieved_memories=(
+                retrieval_result["safe_memories"] if retrieval_result else []
+            ),
+            memories_used=[m.get("content", "") for m in memories_used],
+            trust_scores=[m.get("trust_score") for m in memories_used],
         )
 
         reflection = generate_reflection(
@@ -212,12 +259,15 @@ def process_user_message(db: Session, user_id: str, message: str):
 
         return {
             "response": validation["response"],
-            "retrieved_memories": [],
+            "retrieved_memories": (
+                retrieval_result["safe_memories"] if retrieval_result else []
+            ),
             "security": security_result,
             "memory": None,
             "validation": validation,
             "dashboard": _build_dashboard_payload(
-                security_result, [], validation, elapsed, security_result["decision"]
+                security_result, retrieval_result, validation, elapsed,
+                security_result["decision"]
             ),
         }
 
@@ -276,8 +326,11 @@ def process_user_message(db: Session, user_id: str, message: str):
             attack_type=security_result.get("attack_type", "SAFE"),
             attack_confidence=security_result.get("attack_confidence", 0.0),
             risk_level=security_result.get("risk_level", "LOW"),
+            memory_category=security_result.get("category", "GENERAL"),
+            conflict_status="NONE",
             retrieved_memories=retrieval_result["safe_memories"],
             memories_used=[m.get("content", "") for m in memories_used],
+            trust_scores=[m.get("trust_score") for m in memories_used],
             response_confidence=validation["response_confidence"],
             memory_confidence=validation["memory_confidence"],
             security_confidence=validation["security_confidence"],
@@ -316,7 +369,7 @@ def process_user_message(db: Session, user_id: str, message: str):
         _log_memory_event(db, message, security_result, result, elapsed)
         result["dashboard"] = _build_dashboard_payload(
             security_result, None, None, elapsed,
-            security_result["decision"],
+            (result.get("memory") or {}).get("decision", security_result["decision"]),
             quarantine=result.get("quarantine_status"),
         )
         return result
@@ -333,7 +386,7 @@ def process_user_message(db: Session, user_id: str, message: str):
         _log_memory_event(db, message, security_result, result, elapsed)
         result["dashboard"] = _build_dashboard_payload(
             security_result, None, None, elapsed,
-            security_result["decision"],
+            (result.get("memory") or {}).get("decision", security_result["decision"]),
             quarantine=result.get("quarantine_status"),
         )
         return result
@@ -356,6 +409,8 @@ def process_user_message(db: Session, user_id: str, message: str):
         attack_type=security_result.get("attack_type", "SAFE"),
         attack_confidence=security_result.get("attack_confidence", 0.0),
         risk_level=security_result.get("risk_level", "LOW"),
+        memory_category=security_result.get("category", "GENERAL"),
+        conflict_status="NONE",
         response_confidence=validation["response_confidence"],
         execution_time_ms=elapsed,
         final_decision=security_result["decision"],
@@ -385,13 +440,27 @@ def _log_memory_event(db, message, security_result, result, elapsed):
         payload=message,
         intent=security_result.get("intent"),
         intent_confidence=security_result.get("intent_confidence", 0.0),
-        attack_type=security_result.get("attack_type", "SAFE"),
+        attack_type=memory.get(
+            "attack_type",
+            security_result.get("attack_type", "SAFE"),
+        ),
         attack_confidence=security_result.get("attack_confidence", 0.0),
         risk_level=security_result.get("risk_level", "LOW"),
+        memory_category=security_result.get("category", "GENERAL"),
+        conflict_status=(
+            "DETECTED"
+            if memory.get("conflict_detected")
+            else "NONE"
+        ),
+        trust_scores=(
+            [memory.get("trust_score")]
+            if memory.get("trust_score") is not None
+            else []
+        ),
         poison_detected=memory.get("status") == "blocked",
         quarantine_status=result.get("quarantine_status", "NONE"),
         execution_time_ms=elapsed,
-        final_decision=security_result["decision"],
+        final_decision=memory.get("decision", security_result["decision"]),
         explanation=security_result.get("explanation"),
     )
 
@@ -405,8 +474,10 @@ def _build_dashboard_payload(
     quarantine="NONE",
 ):
     return {
+        "user_input": security_result.get("input"),
         "intent": security_result.get("intent"),
         "intent_confidence": security_result.get("intent_confidence"),
+        "memory_category": security_result.get("category"),
         "attack_type": security_result.get("attack_type"),
         "attack_confidence": security_result.get("attack_confidence"),
         "risk_level": security_result.get("risk_level"),
@@ -435,5 +506,10 @@ def _build_dashboard_payload(
         ),
         "execution_time_ms": elapsed_ms,
         "final_decision": final_decision,
+        "conflict_status": (
+            "DETECTED"
+            if security_result.get("operation") == "UPDATE"
+            else "NONE"
+        ),
         "explanation": security_result.get("explanation"),
     }

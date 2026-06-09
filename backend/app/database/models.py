@@ -98,6 +98,11 @@ class Memory(Base):
         default=0
     )
 
+    conflict_count = Column(
+        Integer,
+        default=0
+    )
+
     usage_count = Column(
         Integer,
         default=0
@@ -481,6 +486,21 @@ class AuditEvent(Base):
     risk_level = Column(
         String,
         default="LOW"
+    )
+
+    memory_category = Column(
+        String,
+        default="GENERAL"
+    )
+
+    conflict_status = Column(
+        String,
+        default="NONE"
+    )
+
+    trust_scores = Column(
+        String,
+        default="[]"
     )
 
     retrieved_memories = Column(

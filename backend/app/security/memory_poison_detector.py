@@ -3,6 +3,7 @@ from app.security.semantic_engine import (
     cosine_similarity,
     mean_embedding
 )
+import re
 
 
 POISONING_EXAMPLES = [
@@ -50,6 +51,26 @@ def detect_memory_poisoning(
     text: str
 
 ):
+    arithmetic_claim = re.search(
+        r"\b(-?\d+)\s*([+\-*])\s*(-?\d+)\s*=\s*(-?\d+)\b",
+        text,
+    )
+    if arithmetic_claim:
+        left, operator, right, claimed = arithmetic_claim.groups()
+        left = int(left)
+        right = int(right)
+        claimed = int(claimed)
+        actual = {
+            "+": left + right,
+            "-": left - right,
+            "*": left * right,
+        }[operator]
+        if actual != claimed:
+            return {
+                "decision": "BLOCK",
+                "type": "MEMORY_POISONING",
+                "confidence": 0.99,
+            }
 
     embedding = get_embedding(
 

@@ -18,13 +18,19 @@ function AuditTable({ events }) {
     }
 
     return (
-        <table className="dashboard-table">
+        <div className="dashboard-table-wrap">
+        <table className="dashboard-table audit-table">
             <thead>
                 <tr>
                     <th>Time</th>
                     <th>Prompt</th>
                     <th>Intent</th>
                     <th>Operation</th>
+                    <th>Category</th>
+                    <th>Retrieved</th>
+                    <th>Used</th>
+                    <th>Trust</th>
+                    <th>Conflict</th>
                     <th>Attack</th>
                     <th>Risk</th>
                     <th>Threat</th>
@@ -36,7 +42,7 @@ function AuditTable({ events }) {
             <tbody>
                 {events.length === 0 ? (
                     <tr>
-                        <td colSpan="10">No activity</td>
+                        <td colSpan="15">No activity</td>
                     </tr>
                 ) : (
                     events.map((event, index) => (
@@ -50,6 +56,11 @@ function AuditTable({ events }) {
                                 )}
                             </td>
                             <td>{event.operation}</td>
+                            <td>{event.memory_category ?? "GENERAL"}</td>
+                            <td>{(event.retrieved_memories ?? []).join(", ") || "—"}</td>
+                            <td>{(event.memories_used ?? []).join(", ") || "—"}</td>
+                            <td>{(event.trust_scores ?? []).join(", ") || "—"}</td>
+                            <td>{event.conflict_status ?? "NONE"}</td>
                             <td
                                 style={{
                                     color: getThreatColor(event.attack_type),
@@ -87,6 +98,7 @@ function AuditTable({ events }) {
                 )}
             </tbody>
         </table>
+        </div>
     );
 }
 

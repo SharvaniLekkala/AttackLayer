@@ -104,6 +104,34 @@ IGNORE_CENTROID = mean_embedding(
 
 
 def should_store_memory(text):
+    stripped = text.strip()
+    lowered = stripped.lower()
+    if (
+        stripped.endswith("?")
+        or lowered.startswith(
+            (
+                "what ",
+                "where ",
+                "who ",
+                "when ",
+                "why ",
+                "how ",
+                "which ",
+                "do ",
+                "does ",
+                "did ",
+                "can ",
+                "could ",
+                "would ",
+                "should ",
+            )
+        )
+    ):
+        return {
+            "store": False,
+            "store_score": 0.0,
+            "ignore_score": 1.0,
+        }
 
     embedding = get_embedding(text)
 

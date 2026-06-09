@@ -18,9 +18,16 @@ def evaluate_security(text: str, db=None, user_id=None):
         decision = "BLOCK"
         security_result["attack_type"] = "MEMORY_POISONING"
         security_result["risk_level"] = "HIGH"
+        intent_result["intent"] = "SENSITIVE_DATA"
+        intent_result["operation"] = "GENERAL_CHAT"
+        intent_result["confidence"] = max(intent_result["confidence"], 0.99)
 
     elif security_result["decision"] == "BLOCK":
         decision = "BLOCK"
+        if security_result["attack_type"] == "PROMPT_INJECTION":
+            intent_result["intent"] = "PROMPT_INJECTION"
+            intent_result["operation"] = "GENERAL_CHAT"
+            intent_result["confidence"] = max(intent_result["confidence"], 0.99)
 
     elif security_result["decision"] == "ALLOW_WITH_WARNING":
         decision = "ALLOW_WITH_WARNING"

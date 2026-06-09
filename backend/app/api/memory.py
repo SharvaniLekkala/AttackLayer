@@ -98,6 +98,9 @@ def all_memories(
             "verification_count":
                 getattr(memory, "verification_count", 0) or 0,
 
+            "conflict_count":
+                getattr(memory, "conflict_count", 0) or 0,
+
             "usage_count":
                 getattr(memory, "usage_count", 0) or 0,
         })
