@@ -17,12 +17,32 @@ from app.memory_security.detectors.tool_policy_validator import (
 )
 
 PREFERENCE_CATEGORIES = {
-    "PREFERENCE"
+    "FOOD_PREFERENCE",
+    "CODING_PREFERENCE",
+    "SPORT_PREFERENCE",
+    "PERSONAL_PREFERENCE",
 }
 
 TOOL_POLICY_CATEGORIES = {
     "TOOL_POLICY"
 }
+
+EXCLUSIVE_CATEGORIES = {
+    "CODING_PREFERENCE",
+    "LOCATION",
+    "PROFESSION",
+}
+
+
+def _is_exclusive_preference(fact, category):
+    lowered = fact.lower()
+    return (
+        category in EXCLUSIVE_CATEGORIES
+        or "favorite" in lowered
+        or "favourite" in lowered
+        or "instead" in lowered
+        or "now prefer" in lowered
+    )
 
 
 def _get_preference_history(
@@ -122,6 +142,8 @@ def detect_conflict(
         # ---------------------------------
 
         if category in PREFERENCE_CATEGORIES:
+            if not _is_exclusive_preference(fact, category):
+                continue
 
             preference_history = (
                 _get_preference_history(

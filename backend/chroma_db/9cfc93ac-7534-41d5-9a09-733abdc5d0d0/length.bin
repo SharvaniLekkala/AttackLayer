@@ -1,0 +1,10 @@
+d TEXT PRIMARY KEY, -- unique globally
+    name TEXT NOT NULL, -- unique per tenant
+    tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    UNIQUE (tenant_id, name) -- Ensure that a tenant has only one database with a given name
+);
+
+CREATE TABLE IF NOT EXISTS collections_tmp (
+    id TEXT PRIMARY KEY, -- unique globally
+    name TEXT NOT NULL, -- unique per database
+    topic TEX

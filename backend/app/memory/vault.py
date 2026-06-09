@@ -201,6 +201,10 @@ def create_memory(
         # ===================================
 
         if attack_type == "DUPLICATE":
+            existing_memory.verification_count = (
+                (existing_memory.verification_count or 0) + 1
+            )
+            db.commit()
 
             return {
                 "status": "duplicate",
@@ -465,6 +469,7 @@ def create_memory(
         attack_type
         in (
             "NONE",
+            "PREFERENCE_UPDATE",
             "TOOL_POLICY_UPDATE",
         )
         and
@@ -472,6 +477,10 @@ def create_memory(
     ):
 
         existing_memory.active = False
+        existing_memory.status = "ARCHIVED"
+        existing_memory.conflict_count = (
+            (getattr(existing_memory, "conflict_count", 0) or 0) + 1
+        )
 
         remove_memory_embedding(
             existing_memory.id
@@ -586,6 +595,8 @@ def create_memory(
     parent_memory_id,
 
         active=True,
+        status="ACTIVE",
+        verification_count=1,
 
         preference_stability_score=
             stability_score,
@@ -640,6 +651,12 @@ def create_memory(
         "conflict_detected":
             conflict_detected,
 
+        "category":
+            security_result["category"],
+
+        "trust_score":
+            trust_result["trust_score"],
+
         "security":
             security_result
 
@@ -684,6 +701,7 @@ def archive_memory(
         return None
 
     memory.active = False
+    memory.status = "ARCHIVED"
 
     remove_memory_embedding(
         memory_id

@@ -5,7 +5,8 @@
 }
 
 .dashboard {
-    max-width: 1100px;
+    width: 100%;
+    max-width: 1800px;
     margin: auto;
     padding: 12px;
     color: #e2e8f0;
@@ -33,19 +34,35 @@
     font-size: 13px;
 }
 
-.dashboard-chat-link {
-    color: #22c55e;
+.danger-action-btn {
+    color: #f87171;
     font-size: 14px;
     font-weight: 600;
     padding: 8px 16px;
-    border: 1px solid #22c55e;
+    border: 1px solid #ef4444;
     border-radius: 8px;
-    text-decoration: none;
+    background: transparent;
+    cursor: pointer;
 }
 
-.dashboard-chat-link:hover {
-    background: #14532d;
+.danger-action-btn:hover:not(:disabled) {
+    background: #7f1d1d;
     color: white;
+}
+
+.danger-action-btn:disabled {
+    cursor: wait;
+    opacity: 0.6;
+}
+
+.dashboard-status {
+    margin: -8px 0 14px;
+    padding: 8px 12px;
+    color: #cbd5e1;
+    background: #111827;
+    border: 1px solid #1e293b;
+    border-radius: 8px;
+    font-size: 12px;
 }
 
 .panel {
@@ -75,7 +92,7 @@
     padding-bottom: 0;
 }
 
-.csv-download-btn {
+.excel-download-btn {
     background: transparent;
     color: #22c55e;
     border: 1px solid #22c55e;
@@ -86,14 +103,26 @@
     cursor: pointer;
 }
 
-.csv-download-btn:hover {
+.excel-download-btn:hover {
     background: #14532d;
     color: white;
 }
 
+.dashboard-table-wrap {
+    width: 100%;
+    overflow-x: auto;
+    border: 1px solid #1e293b;
+    border-radius: 7px;
+}
+
 .dashboard-table {
     width: 100%;
+    min-width: 980px;
     border-collapse: collapse;
+}
+
+.audit-table {
+    min-width: 1900px;
 }
 
 .dashboard-table th {
@@ -103,6 +132,10 @@
     border: 1px solid #1e293b;
     font-size: 11px;
     text-align: left;
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+    z-index: 1;
 }
 
 .dashboard-table td {
@@ -110,6 +143,8 @@
     border: 1px solid #1e293b;
     font-size: 11px;
     vertical-align: top;
+    max-width: 260px;
+    overflow-wrap: anywhere;
 }
 
 .dashboard-table tr:hover {
@@ -164,5 +199,15 @@
 
     .dashboard-title h1 {
         font-size: 26px;
+    }
+
+    .panel-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .excel-download-btn,
+    .danger-action-btn {
+        width: 100%;
     }
 }

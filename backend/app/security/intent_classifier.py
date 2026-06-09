@@ -11,11 +11,7 @@ INTENT_EXAMPLES = {
     "NORMAL_CHAT": [
         "Hello, how are you?",
         "Tell me a joke",
-        "Explain machine learning",
-        "What is Python?",
         "Write a poem about the ocean",
-        "How does deep learning work?",
-        "What is the capital of France?",
     ],
     "MEMORY_STORE": [
         "Remember that I prefer Python",
@@ -44,14 +40,22 @@ INTENT_EXAMPLES = {
         "Clear my memory vault",
         "Delete the memory about my location",
     ],
-    "QUESTION": [
+    "MEMORY_QUERY": [
         "What do you remember about me?",
         "What is my favorite language?",
+        "What do I prefer to code?",
+        "What do I love eating?",
         "Where do I live?",
         "Tell me my stored preferences",
         "What do you know about me?",
         "Do you remember my job?",
         "Recall my preferences",
+    ],
+    "QUESTION": [
+        "Explain machine learning",
+        "What is Python?",
+        "How does deep learning work?",
+        "What is the capital of France?",
     ],
     "SYSTEM_QUERY": [
         "How does your memory system work?",
@@ -82,7 +86,8 @@ OPERATION_MAP = {
     "MEMORY_STORE": "WRITE",
     "MEMORY_UPDATE": "UPDATE",
     "MEMORY_DELETE": "DELETE",
-    "QUESTION": "READ",
+    "MEMORY_QUERY": "READ",
+    "QUESTION": "GENERAL_CHAT",
     "SYSTEM_QUERY": "READ",
     "TOOL_REQUEST": "GENERAL_CHAT",
     "UNKNOWN": "GENERAL_CHAT",
@@ -119,11 +124,83 @@ def classify_intent(text: str, db=None, user_id=None):
     intent = max(scores, key=scores.get)
     confidence = scores[intent]
 
+    stripped = text.strip()
+    query_score = scores.get("MEMORY_QUERY", 0.0)
+    lowered = stripped.lower()
+    declarative_memory = (
+        not stripped.endswith("?")
+        and lowered.startswith(
+            (
+                "i love ",
+                "i like ",
+                "i prefer ",
+                "i live ",
+                "i work ",
+                "i study ",
+                "i am doing ",
+                "my favorite ",
+                "my favourite ",
+                "my career ",
+                "my hometown ",
+            )
+        )
+    )
+    if declarative_memory:
+        operation = "WRITE"
+        if db is not None and user_id is not None:
+            from app.database.models import Memory
+            from app.security.semantic_classifier import classify_memory
+
+            category = classify_memory(text)["category"]
+            has_category_memory = (
+                db.query(Memory)
+                .filter(
+                    Memory.user_id == user_id,
+                    Memory.category == category,
+                    Memory.active == True,
+                )
+                .first()
+                is not None
+            )
+            if has_category_memory:
+                operation = "UPDATE"
+        intent = "MEMORY_UPDATE" if operation == "UPDATE" else "MEMORY_STORE"
+        confidence = max(
+            scores.get(intent, 0.0),
+            scores.get("MEMORY_STORE", 0.0),
+            0.80,
+        )
+
+    personal_query = (
+        lowered.startswith(
+            (
+                "what do i ",
+                "what is my ",
+                "where do i ",
+                "who am i",
+                "which ",
+                "do you remember ",
+                "tell me my ",
+                "recall my ",
+            )
+        )
+        or "about me" in lowered
+    )
+    if (
+        not declarative_memory
+        and
+        (stripped.endswith("?") or personal_query)
+        and query_score >= scores.get("MEMORY_STORE", 0.0) - 0.08
+        and query_score >= scores.get("MEMORY_UPDATE", 0.0) - 0.08
+    ):
+        intent = "MEMORY_QUERY"
+        confidence = query_score
+
     if confidence < 0.45:
         intent = "UNKNOWN"
         confidence = scores.get("UNKNOWN", confidence)
 
-    if intent in ("MEMORY_STORE", "MEMORY_UPDATE"):
+    if intent in ("MEMORY_STORE", "MEMORY_UPDATE") and not declarative_memory:
         write_score = scores.get("MEMORY_STORE", 0.0)
         update_score = scores.get("MEMORY_UPDATE", 0.0)
         operation = _resolve_write_vs_update(

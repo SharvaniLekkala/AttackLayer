@@ -10,6 +10,19 @@ memory_collection = client.get_or_create_collection(
 )
 
 
+def reset_memory_collection():
+    global memory_collection
+
+    try:
+        client.delete_collection(name="memory_vault")
+    except Exception:
+        pass
+
+    memory_collection = client.get_or_create_collection(
+        name="memory_vault"
+    )
+
+
 def add_memory_embedding(
     memory_id: int,
     text: str,

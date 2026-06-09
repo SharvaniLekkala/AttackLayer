@@ -21,11 +21,11 @@ export async function getAllMemories() {
     return response.data;
 }
 
-export function downloadCsv(exportType) {
+export function downloadExcel(exportType) {
     const urls = {
-        audit: "/export/audit-csv",
-        memory: "/export/memory-csv",
-        history: "/export/history-csv",
+        audit: "/export/audit-excel",
+        memory: "/export/memory-excel",
+        history: "/export/history-excel",
     };
     const url = `http://localhost:8000${urls[exportType]}`;
     const link = document.createElement("a");
@@ -34,4 +34,9 @@ export function downloadCsv(exportType) {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+}
+
+export async function clearDatabases() {
+    const response = await API.delete("/admin/databases");
+    return response.data;
 }

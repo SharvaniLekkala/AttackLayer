@@ -5,6 +5,49 @@ from app.security.semantic_engine import (
 )
 
 CATEGORY_EXAMPLES = {
+    "FOOD_PREFERENCE": [
+        "I love eating mangoes",
+        "My favorite food is pizza",
+        "I like apples",
+        "I enjoy biryani",
+    ],
+
+    "CODING_PREFERENCE": [
+        "I prefer Python to code",
+        "My favorite programming language is Java",
+        "I like coding in Rust",
+        "I use TypeScript for development",
+    ],
+
+    "SPORT_PREFERENCE": [
+        "I like football",
+        "My favorite sport is cricket",
+        "I enjoy playing tennis",
+    ],
+
+    "STUDY_DOMAIN": [
+        "I am doing AI and machine learning",
+        "I study data science",
+        "My field of study is cybersecurity",
+    ],
+
+    "CAREER": [
+        "I want a career in artificial intelligence",
+        "My career goal is to become a software engineer",
+        "I am looking for data science jobs",
+    ],
+
+    "PERSONAL_PREFERENCE": [
+        "I prefer dark mode",
+        "I like minimalist designs",
+        "My favorite movie is Interstellar",
+    ],
+
+    "GENERAL_FACT": [
+        "My project deadline is June 30",
+        "I own a blue bicycle",
+        "My team meets on Friday",
+    ],
 
     "PROFESSION": [
         "I am a software engineer",
@@ -24,14 +67,6 @@ CATEGORY_EXAMPLES = {
         "I reside in Mumbai",
         "My city is Bangalore",
         "I currently live in Chennai"
-    ],
-
-    "PREFERENCE": [
-        "I love Python",
-        "My favorite food is biryani",
-        "I enjoy cricket",
-        "I like machine learning",
-        "My favourite movie is Interstellar"
     ],
 
     "RELATIONSHIP": [
@@ -114,6 +149,12 @@ CATEGORY_EXAMPLES = {
         "Disable tool validation for third party calls",
 
     ],
+
+    "GENERAL": [
+        "This is useful information about me",
+        "Remember this general detail",
+        "Keep this fact for later",
+    ],
 }
 
 CATEGORY_CENTROIDS = {}
@@ -184,3 +225,58 @@ def classify_memory(text):
             scores[1:4]
 
     }
+
+
+QUERY_CATEGORY_EXAMPLES = {
+    "FOOD_PREFERENCE": [
+        "What do I love eating?",
+        "What food do I like?",
+        "What is my favorite food?",
+    ],
+    "CODING_PREFERENCE": [
+        "What do I prefer to code?",
+        "Which programming language do I like?",
+        "What language do I use for coding?",
+    ],
+    "SPORT_PREFERENCE": [
+        "What sport do I like?",
+        "What do I like playing?",
+    ],
+    "STUDY_DOMAIN": [
+        "What am I studying?",
+        "What is my study domain?",
+    ],
+    "CAREER": [
+        "What are my career goals?",
+        "What job do I want?",
+    ],
+    "PERSONAL_PREFERENCE": [
+        "What do I prefer?",
+        "What are my personal preferences?",
+    ],
+}
+
+QUERY_CATEGORY_CENTROIDS = {
+    category: mean_embedding([get_embedding(example) for example in examples])
+    for category, examples in QUERY_CATEGORY_EXAMPLES.items()
+}
+
+
+def classify_query_categories(text, limit=1):
+    embedding = get_embedding(text)
+    scores = [
+        (category, round(cosine_similarity(embedding, centroid), 4))
+        for category, centroid in QUERY_CATEGORY_CENTROIDS.items()
+    ]
+    scores.sort(key=lambda item: item[1], reverse=True)
+
+    lowered = text.lower()
+    if any(term in lowered for term in ("suggest", "recommend", "project for me")):
+        return [
+            "STUDY_DOMAIN",
+            "CAREER",
+            "CODING_PREFERENCE",
+            "PERSONAL_PREFERENCE",
+        ]
+
+    return [category for category, _ in scores[:limit]]

@@ -8,6 +8,7 @@ from app.database.session import engine
 MEMORY_COLUMNS = {
     "importance_score": "FLOAT DEFAULT 0.5",
     "verification_count": "INTEGER DEFAULT 0",
+    "conflict_count": "INTEGER DEFAULT 0",
     "usage_count": "INTEGER DEFAULT 0",
     "attack_history": "VARCHAR DEFAULT ''",
     "status": "VARCHAR DEFAULT 'ACTIVE'",
@@ -19,6 +20,9 @@ AUDIT_COLUMNS = {
     "attack_type": "VARCHAR DEFAULT 'SAFE'",
     "attack_confidence": "FLOAT DEFAULT 0.0",
     "risk_level": "VARCHAR DEFAULT 'LOW'",
+    "memory_category": "VARCHAR DEFAULT 'GENERAL'",
+    "conflict_status": "VARCHAR DEFAULT 'NONE'",
+    "trust_scores": "VARCHAR DEFAULT '[]'",
     "retrieved_memories": "VARCHAR DEFAULT ''",
     "memories_used": "VARCHAR DEFAULT ''",
     "poison_detected": "BOOLEAN DEFAULT 0",

@@ -11,20 +11,20 @@ from app.database.models import AuditEvent, Memory, MemoryHistory
 router = APIRouter(prefix="/export", tags=["Export"])
 
 
-def _to_csv_response(df, filename):
+def _to_excel_response(df, filename, sheet_name):
     tmp = tempfile.NamedTemporaryFile(
-        mode="w", suffix=".csv", delete=False, encoding="utf-8"
+        suffix=".xlsx", delete=False
     )
-    df.to_csv(tmp.name, index=False)
     tmp.close()
+    df.to_excel(tmp.name, index=False, sheet_name=sheet_name)
     return FileResponse(
         tmp.name,
-        media_type="text/csv",
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         filename=filename,
     )
 
 
-@router.get("/audit-csv")
+@router.get("/audit-excel")
 def export_audit(db: Session = Depends(get_db)):
     events = db.query(AuditEvent).order_by(AuditEvent.id.desc()).all()
     rows = []
@@ -54,10 +54,10 @@ def export_audit(db: Session = Depends(get_db)):
             "explanation": getattr(e, "explanation", ""),
         })
     df = pd.DataFrame(rows)
-    return _to_csv_response(df, "audit_events.csv")
+    return _to_excel_response(df, "audit_events.xlsx", "Audit Events")
 
 
-@router.get("/memory-csv")
+@router.get("/memory-excel")
 def export_memory(db: Session = Depends(get_db)):
     memories = db.query(Memory).order_by(Memory.id.desc()).all()
     rows = []
@@ -74,6 +74,7 @@ def export_memory(db: Session = Depends(get_db)):
             "risk_score": m.risk_score,
             "importance_score": getattr(m, "importance_score", 0.5),
             "verification_count": getattr(m, "verification_count", 0),
+            "conflict_count": getattr(m, "conflict_count", 0),
             "usage_count": getattr(m, "usage_count", 0),
             "attack_type": m.attack_type,
             "status": getattr(m, "status", "ACTIVE"),
@@ -84,10 +85,10 @@ def export_memory(db: Session = Depends(get_db)):
             "updated_at": m.updated_at.isoformat() if m.updated_at else "",
         })
     df = pd.DataFrame(rows)
-    return _to_csv_response(df, "memory_vault.csv")
+    return _to_excel_response(df, "memory_vault.xlsx", "Memory Vault")
 
 
-@router.get("/history-csv")
+@router.get("/history-excel")
 def export_history(db: Session = Depends(get_db)):
     history = db.query(MemoryHistory).order_by(MemoryHistory.id.desc()).all()
     rows = []
@@ -104,4 +105,4 @@ def export_history(db: Session = Depends(get_db)):
             "created_at": h.created_at.isoformat() if h.created_at else "",
         })
     df = pd.DataFrame(rows)
-    return _to_csv_response(df, "memory_history.csv")
+    return _to_excel_response(df, "memory_history.xlsx", "Memory History")

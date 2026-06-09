@@ -41,6 +41,7 @@ from app.api.evaluation import (
     router as evaluation_router
 )
 from app.database.migrate import run_migrations
+from app.api.admin import router as admin_router
 
 app = FastAPI(
     title="AttackLayer",
@@ -87,6 +88,7 @@ app.include_router(
 app.include_router(
     evaluation_router
 )
+app.include_router(admin_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

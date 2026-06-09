@@ -95,6 +95,7 @@ def get_events(
         retrieved = []
         memories_used = []
         explanation = {}
+        trust_scores = []
 
         try:
             retrieved = json.loads(event.retrieved_memories or "[]")
@@ -108,6 +109,11 @@ def get_events(
 
         try:
             explanation = json.loads(event.explanation or "{}")
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+        try:
+            trust_scores = json.loads(getattr(event, "trust_scores", "[]") or "[]")
         except (json.JSONDecodeError, TypeError):
             pass
 
@@ -128,6 +134,9 @@ def get_events(
                 getattr(event, "attack_confidence", 0.0) or 0.0, 4
             ),
             "risk_level": getattr(event, "risk_level", "LOW") or "LOW",
+            "memory_category": getattr(event, "memory_category", "GENERAL") or "GENERAL",
+            "conflict_status": getattr(event, "conflict_status", "NONE") or "NONE",
+            "trust_scores": trust_scores,
             "retrieved_memories": retrieved,
             "memories_used": memories_used,
             "poison_detected": getattr(event, "poison_detected", False) or False,

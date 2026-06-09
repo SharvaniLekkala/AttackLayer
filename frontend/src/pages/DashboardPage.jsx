@@ -1,14 +1,20 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
 import MemoryTable from "../components/dashboard/MemoryTable";
 import AuditTable from "../components/dashboard/AuditTable";
-import { getAllMemories, getAuditEvents, downloadCsv } from "../api/attacklayer";
+import {
+    clearDatabases,
+    downloadExcel,
+    getAllMemories,
+    getAuditEvents
+} from "../api/attacklayer";
 import "../styles/dashboard.css";
 
 function DashboardPage() {
 
     const [memories, setMemories] = useState([]);
     const [events, setEvents] = useState([]);
+    const [isClearing, setIsClearing] = useState(false);
+    const [status, setStatus] = useState("");
 
     useEffect(() => {
         loadDashboard();
@@ -29,6 +35,27 @@ function DashboardPage() {
         }
     }
 
+    async function handleClearDatabases() {
+        const confirmed = window.confirm(
+            "Clear all AttackLayer database records and Chroma memory data? This cannot be undone."
+        );
+        if (!confirmed) return;
+
+        setIsClearing(true);
+        setStatus("");
+        try {
+            await clearDatabases();
+            setMemories([]);
+            setEvents([]);
+            setStatus("Databases cleared successfully.");
+        } catch (error) {
+            console.error(error);
+            setStatus("Could not clear databases.");
+        } finally {
+            setIsClearing(false);
+        }
+    }
+
     return (
         <div className="dashboard dashboard-simple">
             <div className="dashboard-header-row">
@@ -36,19 +63,24 @@ function DashboardPage() {
                     <h1>ATTACKLAYER</h1>
                     <p>Memory Security Overview</p>
                 </div>
-                <Link to="/chat" className="dashboard-chat-link">
-                    Open Chat
-                </Link>
+                <button
+                    className="danger-action-btn"
+                    onClick={handleClearDatabases}
+                    disabled={isClearing}
+                >
+                    {isClearing ? "Clearing..." : "Clear Databases"}
+                </button>
             </div>
+            {status && <div className="dashboard-status">{status}</div>}
 
             <div className="panel">
                 <div className="panel-header">
                     <h2>MEMORY VAULT</h2>
                     <button
-                        className="csv-download-btn"
-                        onClick={() => downloadCsv("memory")}
+                        className="excel-download-btn"
+                        onClick={() => downloadExcel("memory")}
                     >
-                        Download CSV
+                        Download Excel
                     </button>
                 </div>
                 <MemoryTable memories={memories} />
@@ -58,10 +90,10 @@ function DashboardPage() {
                 <div className="panel-header">
                     <h2>RECENT ACTIVITY</h2>
                     <button
-                        className="csv-download-btn"
-                        onClick={() => downloadCsv("audit")}
+                        className="excel-download-btn"
+                        onClick={() => downloadExcel("audit")}
                     >
-                        Download CSV
+                        Download Excel
                     </button>
                 </div>
                 <AuditTable events={events.slice(0, 20)} />

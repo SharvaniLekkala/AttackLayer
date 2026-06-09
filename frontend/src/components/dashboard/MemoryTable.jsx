@@ -15,7 +15,8 @@ function MemoryTable({ memories }) {
     }
 
     return (
-        <table className="dashboard-table">
+        <div className="dashboard-table-wrap">
+        <table className="dashboard-table memory-table">
             <thead>
                 <tr>
                     <th>ID</th>
@@ -25,6 +26,7 @@ function MemoryTable({ memories }) {
                     <th>Poison</th>
                     <th>Attack</th>
                     <th>Version</th>
+                    <th>Conflicts</th>
                     <th>Status</th>
                     <th>Source</th>
                 </tr>
@@ -51,6 +53,7 @@ function MemoryTable({ memories }) {
                                 {memory.attack_type ?? "NONE"}
                             </td>
                             <td>{memory.memory_version ?? memory.version ?? 1}</td>
+                            <td>{memory.conflict_count ?? 0}</td>
                             <td
                                 style={{
                                     color: getStatusColor(memory.status),
@@ -65,6 +68,7 @@ function MemoryTable({ memories }) {
                 )}
             </tbody>
         </table>
+        </div>
     );
 }
 
