@@ -15,7 +15,34 @@ function DashboardPage() {
     const [events, setEvents] = useState([]);
     const [isClearing, setIsClearing] = useState(false);
     const [status, setStatus] = useState("");
+    const averageTrust =
+        memories.length > 0
+            ? (
+                memories.reduce(
+                    (sum, memory) =>
+                        sum + (memory.trust_score || 0),
+                    0
+                ) / memories.length
+            ).toFixed(2)
+            : "0.00";
 
+    const allowedCount = events.filter(
+        (event) =>
+            (event.final_decision ?? event.decision) ===
+            "ALLOW"
+    ).length;
+
+    const blockedCount = events.filter(
+        (event) =>
+            (event.final_decision ?? event.decision) ===
+            "BLOCK"
+    ).length;
+
+    const warningCount = events.filter((event) =>
+        ["ALLOW_WITH_WARNING", "REVIEW"].includes(
+            event.final_decision ?? event.decision
+        )
+    ).length;
     useEffect(() => {
         loadDashboard();
         const timer = setInterval(loadDashboard, 5000);
@@ -72,7 +99,45 @@ function DashboardPage() {
                 </button>
             </div>
             {status && <div className="dashboard-status">{status}</div>}
+            <div className="dashboard-metrics">
 
+                <div className="metric-card">
+                    <div className="metric-title">
+                        Average Trust
+                    </div>
+                    <div className="metric-value">
+                        {averageTrust}
+                    </div>
+                </div>
+
+                <div className="metric-card">
+                    <div className="metric-title">
+                        Allowed
+                    </div>
+                    <div className="metric-value metric-green">
+                        {allowedCount}
+                    </div>
+                </div>
+
+                <div className="metric-card">
+                    <div className="metric-title">
+                        Blocked
+                    </div>
+                    <div className="metric-value metric-red">
+                        {blockedCount}
+                    </div>
+                </div>
+
+                <div className="metric-card">
+                    <div className="metric-title">
+                        Warnings
+                    </div>
+                    <div className="metric-value metric-orange">
+                        {warningCount}
+                    </div>
+                </div>
+
+            </div>
             <div className="panel">
                 <div className="panel-header">
                     <h2>MEMORY VAULT</h2>
