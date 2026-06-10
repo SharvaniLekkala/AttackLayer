@@ -211,3 +211,48 @@
         width: 100%;
     }
 }
+.dashboard-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 16px;
+}
+
+.metric-card {
+    background: linear-gradient(145deg, #081120, #0f172a);
+    border: 1px solid #1e293b;
+    border-radius: 10px;
+    padding: 18px;
+    text-align: center;
+    transition: 0.2s;
+}
+
+.metric-card:hover {
+    border-color: #22c55e;
+    transform: translateY(-2px);
+}
+
+.metric-title {
+    color: #94a3b8;
+    font-size: 13px;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.metric-value {
+    color: #22c55e;
+    font-size: 32px;
+    font-weight: 700;
+}
+
+.metric-green {
+    color: #22c55e;
+}
+
+.metric-red {
+    color: #ef4444;
+}
+
+.metric-orange {
+    color: #f59e0b;
+}
