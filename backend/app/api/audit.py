@@ -1,79 +1,40 @@
 import json
-
 from fastapi import APIRouter
 from fastapi import Depends
-
 from sqlalchemy.orm import Session
 
 from app.database.session import (
     get_db
 )
-
 from app.database.models import (
     AuditEvent
 )
-
 from app.audit.dashboard import (
-
     get_blocked_events,
-
     get_threat_events,
-
     get_conflict_events,
-
     get_trust_analytics,
-
     get_top_attack_types,
-
     get_risk_distribution,
-
     get_attack_statistics,
-
     get_security_timeline,
-
     get_attack_simulator,
-
     get_trust_breakdown,
-
     get_user_risk_profile,
-
     get_preference_drift_analytics,
-
     get_preference_timeline,
-
     get_preference_drift_distribution,
-
     get_tool_policy_violations,
-
     get_tool_policy_analytics,
-
     get_tool_policy_timeline,
-
     get_propagation_analytics,
-
     get_propagation_timeline,
-
     get_propagation_attack_count
-
 )
-router = APIRouter(
-
-    prefix="/audit",
-
-    tags=["Audit"]
-
-)
-
+router = APIRouter(prefix="/audit",tags=["Audit"])
 
 @router.get("/events")
-def get_events(
-
-    db: Session = Depends(
-        get_db
-    )
-
-):
-
+def get_events(db: Session = Depends(get_db)):
     events = (
 
         db.query(

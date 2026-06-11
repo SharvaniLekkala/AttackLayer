@@ -15,9 +15,7 @@ from app.database.models import (
 from app.database.session import SessionLocal
 from app.memory.vector_storage import reset_memory_collection
 
-
 router = APIRouter(prefix="/admin", tags=["Admin"])
-
 
 @router.delete("/databases")
 def clear_databases():
