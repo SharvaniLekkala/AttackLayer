@@ -56,7 +56,12 @@ def _build_memory_response(memory_result, stored_message="Got it. I'll remember 
 
     if status == "quarantined":
         return "⚠ Memory sent for security review."
-
+    if status == "pending_review":
+        return (
+            "⚠ This memory update requires human review.\n\n"
+            "It has been placed in the HITL queue and "
+            "will become active only after approval."
+        )
     if status == "duplicate":
         return "I already know that."
 
@@ -133,6 +138,7 @@ def process_user_message(db: Session, user_id: str, message: str):
         was_blocked=security_result["decision"] == "BLOCK",
     )
 
+    # Handle BLOCK decision
     if security_result["decision"] == "BLOCK":
         elapsed = round((time.time() - start_time) * 1000, 2)
 
@@ -180,6 +186,69 @@ def process_user_message(db: Session, user_id: str, message: str):
             "memory": None,
             "dashboard": _build_dashboard_payload(
                 security_result, [], None, elapsed, "BLOCK"
+            ),
+        }
+
+    # Handle ALLOW_WITH_WARNING decision - send to HITL, do not generate LLM response
+    if security_result["decision"] == "ALLOW_WITH_WARNING":
+        elapsed = round((time.time() - start_time) * 1000, 2)
+
+        # Still retrieve memories for context and potential storage, but don't use for LLM
+        retrieval_result = None
+        ranked_memories = []
+        memories_used = []
+
+        if operation == "GENERAL_CHAT" or operation == "READ":
+            retrieval_result = retrieve_memories(
+                db=db,
+                user_id=user_id,
+                query=message,
+            )
+            ranked_memories = retrieval_result.get("ranked_memories", [])
+            memories_used = ranked_memories
+
+        # Log the event with ALLOW_WITH_WARNING final decision
+        log_security_event(
+            db=db,
+            operation=operation,
+            decision=security_result["decision"],  # This will be "ALLOW_WITH_WARNING"
+            threat=security_result["threat"],
+            risk_score=security_result["risk_score"],
+            payload=message,
+            intent=security_result.get("intent"),
+            intent_confidence=security_result.get("intent_confidence", 0.0),
+            attack_type=security_result.get("attack_type", "SAFE"),
+            attack_confidence=security_result.get("attack_confidence", 0.0),
+            risk_level=security_result.get("risk_level", "LOW"),
+            memory_category=security_result.get("category", "GENERAL"),
+            conflict_status="NONE",
+            poison_detected=security_result.get("attack_type") == "MEMORY_POISONING",
+            retrieved_memories=(retrieval_result["safe_memories"] if retrieval_result else []),
+            memories_used=[m.get("content", "") for m in memories_used],
+            trust_scores=[m.get("trust_score") for m in memories_used],
+            execution_time_ms=elapsed,
+            final_decision="ALLOW_WITH_WARNING",  # Explicitly set for HITL queue
+            explanation=security_result.get("explanation"),
+        )
+
+        # Return response indicating it's waiting for human approval
+        hitl_response = (
+            "⚠ This request requires human review due to potential security concerns.\n\n"
+            "Your request has been submitted to the Human Validation Center (HITL) for approval.\n"
+            "Please visit the HITL page to review and approve or reject this request.\n\n"
+            f"Threat Type: {security_result.get('threat', 'UNKNOWN')}\n"
+            f"Risk Level: {security_result.get('risk_level', 'LOW')}\n"
+            f"Attack Type: {security_result.get('attack_type', 'SAFE')}"
+        )
+
+        return {
+            "response": hitl_response,
+            "retrieved_memories": (retrieval_result["safe_memories"] if retrieval_result else []),
+            "security": security_result,
+            "memory": None,
+            "validation": None,
+            "dashboard": _build_dashboard_payload(
+                security_result, retrieval_result, None, elapsed, "ALLOW_WITH_WARNING"
             ),
         }
 
@@ -383,12 +452,21 @@ def process_user_message(db: Session, user_id: str, message: str):
             stored_message="Got it. I've updated your memory.",
         )
         elapsed = round((time.time() - start_time) * 1000, 2)
-        _log_memory_event(db, message, security_result, result, elapsed)
-        result["dashboard"] = _build_dashboard_payload(
-            security_result, None, None, elapsed,
-            (result.get("memory") or {}).get("decision", security_result["decision"]),
-            quarantine=result.get("quarantine_status"),
-        )
+        event = _log_memory_event(
+        db,
+        message,
+        security_result,
+        result,
+        elapsed
+    )
+
+        if (result.get("memory") or {}).get("status") == "pending_review":
+            result["hitl_request_id"] = event.id
+            result["dashboard"] = _build_dashboard_payload(
+                security_result, None, None, elapsed,
+                (result.get("memory") or {}).get("decision", security_result["decision"]),
+                quarantine=result.get("quarantine_status"),
+            )
         return result
 
     llm_response = generate_response(query=message, secure_context="")
@@ -431,7 +509,7 @@ def process_user_message(db: Session, user_id: str, message: str):
 
 def _log_memory_event(db, message, security_result, result, elapsed):
     memory = result.get("memory") or {}
-    log_security_event(
+    return log_security_event(
         db=db,
         operation=security_result["operation"],
         decision=security_result["decision"],
@@ -462,6 +540,9 @@ def _log_memory_event(db, message, security_result, result, elapsed):
         execution_time_ms=elapsed,
         final_decision=memory.get("decision", security_result["decision"]),
         explanation=security_result.get("explanation"),
+        memory_id=memory.get(
+    "memory_id"
+),
     )
 
 

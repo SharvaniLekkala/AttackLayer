@@ -40,6 +40,9 @@ from app.api.research import (
 from app.api.evaluation import (
     router as evaluation_router
 )
+from app.api.hitl import (
+    router as hitl_router
+)
 from app.database.migrate import run_migrations
 from app.api.admin import router as admin_router
 
@@ -55,7 +58,6 @@ app.include_router(classifier_router)
 app.include_router(
     threat_router
 )
-
 app.include_router(
     sensitive_router
 )
@@ -72,9 +74,7 @@ app.include_router(
     chat_router
 )
 app.include_router(
-
     export_router
-
 )
 app.include_router(
     tool_policy_router
@@ -89,6 +89,7 @@ app.include_router(
     evaluation_router
 )
 app.include_router(admin_router)
+app.include_router(hitl_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -97,6 +98,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.get("/")
 async def root():
     return {
@@ -104,6 +106,7 @@ async def root():
         "status": "running",
         "version": "2.0.0"
     }
+
 
 @app.get("/health")
 async def health():

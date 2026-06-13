@@ -594,8 +594,17 @@ def create_memory(
         parent_memory_id=
     parent_memory_id,
 
-        active=True,
-        status="ACTIVE",
+        active=(
+    False
+    if final_decision == "ALLOW_WITH_WARNING"
+    else True
+),
+
+status=(
+    "PENDING_REVIEW"
+    if final_decision == "ALLOW_WITH_WARNING"
+    else "ACTIVE"
+),
         verification_count=1,
 
         preference_stability_score=
@@ -612,55 +621,61 @@ def create_memory(
 
     db.refresh(memory)
 
-    embedding = generate_embedding(
-        fact
-    )
+    if final_decision != "ALLOW_WITH_WARNING":
 
-    add_memory_embedding(
+        embedding = generate_embedding(
+            fact
+        )
 
-        memory.id,
+        add_memory_embedding(
 
-        fact,
+            memory.id,
 
-        embedding
+            fact,
 
-    )
+            embedding
+
+        )
 
     return {
 
-        "status":
-            "stored",
+    "status":
+        (
+            "pending_review"
+            if final_decision == "ALLOW_WITH_WARNING"
+            else "stored"
+        ),
 
-        "memory_id":
-            memory.id,
+    "memory_id":
+        memory.id,
 
-        "memory_version":
-            memory.memory_version,
+    "memory_version":
+        memory.memory_version,
 
-        "decision":
-            final_decision,
+    "decision":
+        final_decision,
 
-        "attack_type":
-            attack_type,
+    "attack_type":
+        attack_type,
 
-        "poison_score":
-            trust_result[
-                "poison_score"
-            ],
+    "poison_score":
+        trust_result[
+            "poison_score"
+        ],
 
-        "conflict_detected":
-            conflict_detected,
+    "conflict_detected":
+        conflict_detected,
 
-        "category":
-            security_result["category"],
+    "category":
+        security_result["category"],
 
-        "trust_score":
-            trust_result["trust_score"],
+    "trust_score":
+        trust_result["trust_score"],
 
-        "security":
-            security_result
+    "security":
+        security_result
 
-    }
+}
 
 
 def get_all_memories(
@@ -729,3 +744,62 @@ def get_memory_history(
         )
         .all()
     )
+
+
+def clear_episodic_memories(db: Session):
+    """
+    Clear all episodic memories.
+    Episodic memories are defined as those with category "EPISODIC" or source containing "session".
+    """
+    memories_to_clear = db.query(Memory).filter(
+        (Memory.category == "EPISODIC") | (Memory.source.like("%session%"))
+    ).all()
+
+    for memory in memories_to_clear:
+        # Remove embedding first
+        remove_memory_embedding(memory.id)
+        # Delete the memory
+        db.delete(memory)
+
+    db.commit()
+    return len(memories_to_clear)
+
+
+def clear_short_term_memories(db: Session):
+    """
+    Clear all short-term memories.
+    Short-term memories are defined as those with category "SHORT_TERM" or importance_score < 0.5.
+    """
+    memories_to_clear = db.query(Memory).filter(
+        (Memory.category == "SHORT_TERM") | (Memory.importance_score < 0.5)
+    ).all()
+
+    for memory in memories_to_clear:
+        # Remove embedding first
+        remove_memory_embedding(memory.id)
+        # Delete the memory
+        db.delete(memory)
+
+    db.commit()
+    return len(memories_to_clear)
+
+
+def clear_long_term_memories(db: Session):
+    """
+    Clear all long-term memories.
+    Long-term memories are defined as those with category "LONG_TERM" or
+    (trust_score > 0.7 and importance_score >= 0.5).
+    """
+    memories_to_clear = db.query(Memory).filter(
+        (Memory.category == "LONG_TERM") |
+        ((Memory.trust_score > 0.7) & (Memory.importance_score >= 0.5))
+    ).all()
+
+    for memory in memories_to_clear:
+        # Remove embedding first
+        remove_memory_embedding(memory.id)
+        # Delete the memory
+        db.delete(memory)
+
+    db.commit()
+    return len(memories_to_clear)

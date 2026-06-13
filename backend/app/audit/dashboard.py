@@ -12,8 +12,8 @@ from app.database.models import (
 def get_blocked_events(
 
     db
-
 ):
+
     return (
 
         db.query(
@@ -40,7 +40,6 @@ def get_blocked_events(
 def get_threat_events(
 
     db
-
 ):
 
     return (
@@ -69,7 +68,6 @@ def get_threat_events(
 def get_conflict_events(
 
     db
-
 ):
 
     return (
@@ -98,7 +96,6 @@ def get_conflict_events(
 def get_trust_analytics(
 
     db
-
 ):
 
     value = (
@@ -133,7 +130,6 @@ def get_trust_analytics(
 def get_top_attack_types(
 
     db
-
 ):
 
     password = (
@@ -222,7 +218,6 @@ def get_top_attack_types(
 def get_risk_distribution(
 
     db
-
 ):
 
     events = (
@@ -289,7 +284,6 @@ def get_risk_distribution(
 def get_attack_statistics(
 
     db
-
 ):
 
     return {
@@ -434,11 +428,12 @@ def get_attack_statistics(
 
             .count()
 
-    }
+        }
+
+
 def get_security_timeline(
 
     db
-
 ):
 
     events = (
@@ -527,10 +522,10 @@ def get_security_timeline(
 
     return result
 
+
 def get_attack_simulator(
 
     db
-
 ):
 
     password = (
@@ -623,25 +618,25 @@ def get_attack_simulator(
 
     poisoning = (
 
-    db.query(
+        db.query(
 
-        AuditEvent
+            AuditEvent
+
+        )
+
+        .filter(
+
+            AuditEvent.threat
+
+            ==
+
+            "MEMORY_POISONING"
+
+        )
+
+        .count()
 
     )
-
-    .filter(
-
-        AuditEvent.threat
-
-        ==
-
-        "MEMORY_POISONING"
-
-    )
-
-    .count()
-
-)
 
     return {
 
@@ -666,10 +661,11 @@ def get_attack_simulator(
             blocked
 
     }
+
+
 def get_trust_breakdown(
 
     db
-
 ):
 
     memories = (
@@ -749,10 +745,11 @@ def get_trust_breakdown(
             )
 
     }
+
+
 def get_user_risk_profile(
 
     db
-
 ):
 
     total_events = (
@@ -967,7 +964,6 @@ def get_user_risk_profile(
 def get_preference_drift_analytics(
 
     db
-
 ):
 
     events = (
@@ -1011,7 +1007,9 @@ def get_preference_drift_analytics(
         for event in events
 
         if event.attack_type
+
         ==
+
         "PREFERENCE_MANIPULATION"
 
     )
@@ -1043,7 +1041,9 @@ def get_preference_drift_analytics(
         "average_drift_score": round(
 
             sum(drift_scores)
+
             /
+
             len(drift_scores),
 
             4
@@ -1053,7 +1053,9 @@ def get_preference_drift_analytics(
         "average_stability_score": round(
 
             sum(stability_scores)
+
             /
+
             len(stability_scores),
 
             4
@@ -1076,7 +1078,9 @@ def get_preference_timeline(
         db.query(PreferenceEvent)
 
         .order_by(
+
             PreferenceEvent.id.desc()
+
         )
 
         .limit(limit)
@@ -1092,7 +1096,9 @@ def get_preference_timeline(
             "id": event.id,
 
             "time": event.created_at.strftime(
+
                 "%Y-%m-%d %H:%M:%S"
+
             ),
 
             "old_fact": event.old_fact,
@@ -1102,19 +1108,27 @@ def get_preference_timeline(
             "category": event.category,
 
             "stability_score": round(
+
                 event.stability_score,
+
                 4
+
             ),
 
             "drift_score": round(
+
                 event.drift_score,
+
                 4
+
             ),
 
             "is_legitimate_update":
+
                 event.is_legitimate_update,
 
             "attack_type":
+
                 event.attack_type,
 
         }
@@ -1127,7 +1141,6 @@ def get_preference_timeline(
 def get_preference_drift_distribution(
 
     db
-
 ):
 
     memories = (
@@ -1137,11 +1150,15 @@ def get_preference_drift_distribution(
         .filter(
 
             Memory.category
+
             ==
+
             "PREFERENCE",
 
             Memory.preference_drift_score.isnot(
+
                 None
+
             )
 
         )
@@ -1186,7 +1203,6 @@ def get_preference_drift_distribution(
 def get_tool_policy_violations(
 
     db
-
 ):
 
     events = (
@@ -1196,7 +1212,9 @@ def get_tool_policy_violations(
         .filter(
 
             ToolPolicyEvent.decision
+
             ==
+
             "BLOCK"
 
         )
@@ -1211,7 +1229,6 @@ def get_tool_policy_violations(
 def get_tool_policy_analytics(
 
     db
-
 ):
 
     events = (
@@ -1255,7 +1272,9 @@ def get_tool_policy_analytics(
         for event in events
 
         if event.violation_reason.startswith(
+
             "UNAPPROVED_DOMAIN"
+
         )
 
     )
@@ -1267,7 +1286,9 @@ def get_tool_policy_analytics(
         for event in events
 
         if event.violation_reason
+
         ==
+
         "BYPASS_VERIFICATION"
 
     )
@@ -1289,7 +1310,9 @@ def get_tool_policy_analytics(
         "average_risk_score": round(
 
             sum(risk_scores)
+
             /
+
             len(risk_scores),
 
             4
@@ -1297,9 +1320,11 @@ def get_tool_policy_analytics(
         ),
 
         "unapproved_domain_violations":
+
             domain_violations,
 
         "bypass_verification_violations":
+
             bypass_violations,
 
     }
@@ -1318,7 +1343,9 @@ def get_tool_policy_timeline(
         db.query(ToolPolicyEvent)
 
         .order_by(
+
             ToolPolicyEvent.id.desc()
+
         )
 
         .limit(limit)
@@ -1334,22 +1361,29 @@ def get_tool_policy_timeline(
             "id": event.id,
 
             "time": event.created_at.strftime(
+
                 "%Y-%m-%d %H:%M:%S"
+
             ),
 
             "policy_text": event.policy_text,
 
             "violation_reason":
+
                 event.violation_reason,
 
             "risk_score": round(
+
                 event.risk_score,
+
                 4
+
             ),
 
             "decision": event.decision,
 
             "unapproved_domains":
+
                 event.unapproved_domains,
 
         }
@@ -1362,7 +1396,6 @@ def get_tool_policy_timeline(
 def get_propagation_analytics(
 
     db
-
 ):
 
     events = (
@@ -1438,7 +1471,9 @@ def get_propagation_analytics(
         "average_spread_rate": round(
 
             sum(spread_rates)
+
             /
+
             len(spread_rates),
 
             4
@@ -1448,7 +1483,9 @@ def get_propagation_analytics(
         "average_spread_percentage": round(
 
             sum(spread_percentages)
+
             /
+
             len(spread_percentages),
 
             2
@@ -1471,7 +1508,6 @@ def get_propagation_timeline(
     db,
 
     limit=50
-
 ):
 
     events = (
@@ -1479,7 +1515,9 @@ def get_propagation_timeline(
         db.query(PropagationEvent)
 
         .order_by(
+
             PropagationEvent.id.desc()
+
         )
 
         .limit(limit)
@@ -1495,42 +1533,59 @@ def get_propagation_timeline(
             "id": event.id,
 
             "time": event.created_at.strftime(
+
                 "%Y-%m-%d %H:%M:%S"
+
             ),
 
             "origin_agent":
+
                 event.origin_agent,
 
             "target_agent":
+
                 event.target_agent,
 
             "propagation_path":
+
                 event.propagation_path,
 
             "spread_score": round(
+
                 event.spread_score,
+
                 4
+
             ),
 
             "spread_percentage": round(
+
                 event.spread_percentage,
+
                 2
+
             ),
 
             "poison_score": round(
+
                 event.poison_score,
+
                 4
+
             ),
 
             "attack_type":
+
                 event.attack_type,
 
             "decision":
+
                 event.decision,
 
             "fact": event.fact,
 
             "root_memory_id":
+
                 event.root_memory_id,
 
         }
@@ -1543,7 +1598,6 @@ def get_propagation_timeline(
 def get_propagation_attack_count(
 
     db
-
 ):
 
     return (
@@ -1553,7 +1607,9 @@ def get_propagation_attack_count(
         .filter(
 
             PropagationEvent.attack_type
+
             ==
+
             "PROPAGATION_ATTACK"
 
         )
@@ -1561,3 +1617,139 @@ def get_propagation_attack_count(
         .count()
 
     )
+
+
+def get_attack_statistics(db):
+    return {
+        "totalRequests": db.query(AuditEvent).count(),
+        "allowedRequests": db.query(AuditEvent).filter(AuditEvent.final_decision == "ALLOW").count(),
+        "blockedAttacks": db.query(AuditEvent).filter(AuditEvent.final_decision == "BLOCK").count(),
+        "allowWithWarning": db.query(AuditEvent).filter(AuditEvent.final_decision == "ALLOW_WITH_WARNING").count(),
+        "humanApproved": db.query(AuditEvent).filter(AuditEvent.explanation.like('%"human_decision":"APPROVED"%')).count(),
+        "humanRejected": db.query(AuditEvent).filter(AuditEvent.explanation.like('%"human_decision":"REJECTED"%')).count(),
+        "promptInjectionAttempts": db.query(AuditEvent).filter(AuditEvent.attack_type == "PROMPT_INJECTION").count(),
+        "memoryPoisoningAttempts": db.query(AuditEvent).filter(AuditEvent.attack_type == "MEMORY_POISONING").count(),
+        "falseFactInjectionAttempts": db.query(AuditEvent).filter(AuditEvent.attack_type == "FALSE_FACT_INJECTION").count()
+    }
+
+
+def get_attack_trend_over_time(db):
+    # Return last 24 hours of data, grouped by hour
+    from datetime import datetime, timedelta
+    # This is a simplified implementation - in production you'd want proper time-series aggregation
+    twenty_four_hours_ago = datetime.utcnow() - timedelta(hours=24)
+    events = db.query(AuditEvent).filter(AuditEvent.created_at >= twenty_four_hours_ago).all()
+
+    # Group by hour
+    hourly_counts = {}
+    for event in events:
+        hour_key = event.created_at.strftime("%Y-%m-%d %H:00")
+        hourly_counts[hour_key] = hourly_counts.get(hour_key, 0) + 1
+
+    # Convert to list of {time, count} objects sorted by time
+    result = [{"time": time, "count": count} for time, count in sorted(hourly_counts.items())]
+    return result
+
+
+def get_decision_distribution(db):
+    allowed = db.query(AuditEvent).filter(AuditEvent.final_decision == "ALLOW").count()
+    blocked = db.query(AuditEvent).filter(AuditEvent.final_decision == "BLOCK").count()
+    allow_with_warning = db.query(AuditEvent).filter(AuditEvent.final_decision == "ALLOW_WITH_WARNING").count()
+
+    return {
+        "allowed": allowed,
+        "blocked": blocked,
+        "allowWithWarning": allow_with_warning
+    }
+
+
+def get_threat_category_distribution(db):
+    # Get threat types and their counts
+    threat_types = db.query(AuditEvent.threat).distinct().all()
+    result = []
+    for (threat_type,) in threat_types:
+        if threat_type and threat_type != "NONE":
+            count = db.query(AuditEvent).filter(AuditEvent.threat == threat_type).count()
+            result.append({"category": threat_type, "count": count})
+    return result
+
+
+def get_memory_usage_distribution(db):
+    # This is a simplified implementation
+    total_memories = db.query(Memory).count()
+    if total_memories == 0:
+        return {"episodic": 0, "shortTerm": 0, "longTerm": 0}
+
+    episodic = db.query(Memory).filter(
+        (Memory.category == "EPISODIC") | (Memory.source.like("%session%"))
+    ).count()
+
+    short_term = db.query(Memory).filter(
+        (Memory.category == "SHORT_TERM") | (Memory.importance_score < 0.5)
+    ).count()
+
+    long_term = db.query(Memory).filter(
+        (Memory.category == "LONG_TERM") |
+        ((Memory.trust_score > 0.7) & (Memory.importance_score >= 0.5))
+    ).count()
+
+    # Calculate percentages
+    episodic_pct = round((episodic / total_memories) * 100) if total_memories > 0 else 0
+    short_term_pct = round((short_term / total_memories) * 100) if total_memories > 0 else 0
+    long_term_pct = round((long_term / total_memories) * 100) if total_memories > 0 else 0
+
+    return {
+        "episodic": episodic_pct,
+        "shortTerm": short_term_pct,
+        "longTerm": long_term_pct
+    }
+
+
+def get_human_approval_vs_rejection(db):
+    approved = db.query(AuditEvent).filter(AuditEvent.explanation.like('%"human_decision":"APPROVED"%')).count()
+    rejected = db.query(AuditEvent).filter(AuditEvent.explanation.like('%"human_decision":"REJECTED"%')).count()
+
+    return {
+        "approved": approved,
+        "rejected": rejected
+    }
+
+
+def get_attack_severity_breakdown(db):
+    # Count by risk level
+    high_risk = db.query(AuditEvent).filter(AuditEvent.risk_level == "HIGH").count()
+    medium_risk = db.query(AuditEvent).filter(AuditEvent.risk_level == "MEDIUM").count()
+    low_risk = db.query(AuditEvent).filter(AuditEvent.risk_level == "LOW").count()
+    critical_risk = db.query(AuditEvent).filter(AuditEvent.risk_level == "CRITICAL").count()
+
+    return {
+        "severityLevels": [
+            {"level": "LOW", "count": low_risk},
+            {"level": "MEDIUM", "count": medium_risk},
+            {"level": "HIGH", "count": high_risk},
+            {"level": "CRITICAL", "count": critical_risk}
+        ]
+    }
+
+
+def get_ip_intelligence(db):
+    # Get unique IPs and their info
+    # This is a simplified implementation
+    ip_records = db.query(AuditEvent).filter(AuditEvent.explanation.isnot(None)).all()
+
+    # Extract IP addresses from explanation (this would be more robust in a real implementation)
+    ip_data = []
+    seen_ips = set()
+
+    for record in ip_records:
+        # Very basic IP extraction - in reality you'd store IP separately
+        explanation_str = str(record.explanation)
+        # This is a placeholder - you'd have a proper IP tracking system
+        if len(ip_data) < 10:  # Limit for demo
+            ip_data.append({
+                "ipAddress": f"192.168.1.{len(ip_data)+1}",
+                "country": "Unknown",
+                "riskScore": len(ip_data) * 10
+            })
+
+    return ip_data

@@ -552,7 +552,11 @@ class AuditEvent(Base):
         String,
         default=""
     )
-
+    
+    memory_id = Column(
+    Integer,
+    nullable=True
+)
     created_at = Column(
         DateTime,
         default=datetime.utcnow
