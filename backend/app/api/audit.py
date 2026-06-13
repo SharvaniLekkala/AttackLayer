@@ -29,7 +29,14 @@ from app.audit.dashboard import (
     get_tool_policy_timeline,
     get_propagation_analytics,
     get_propagation_timeline,
-    get_propagation_attack_count
+    get_propagation_attack_count,
+    get_attack_trend_over_time,
+    get_decision_distribution,
+    get_threat_category_distribution,
+    get_memory_usage_distribution,
+    get_human_approval_vs_rejection,
+    get_attack_severity_breakdown,
+    get_ip_intelligence
 )
 router = APIRouter(prefix="/audit",tags=["Audit"])
 
@@ -197,20 +204,7 @@ def risk_distribution(
     return get_risk_distribution(
         db
     )
-@router.get("/attack-statistics")
-def attack_statistics(
 
-    db: Session = Depends(
-        get_db
-    )
-
-):
-
-    return get_attack_statistics(
-
-        db
-
-    )
 @router.get("/timeline")
 def security_timeline(
 
@@ -398,3 +392,59 @@ def propagation_attacks(
         "propagation_attacks":
             get_propagation_attack_count(db)
     }
+
+
+@router.get("/attack-statistics")
+def attack_statistics(
+    db: Session = Depends(get_db)
+):
+    return get_attack_statistics(db)
+
+
+@router.get("/attack-trend-over-time")
+def attack_trend_over_time(
+    db: Session = Depends(get_db)
+):
+    return get_attack_trend_over_time(db)
+
+
+@router.get("/decision-distribution")
+def decision_distribution(
+    db: Session = Depends(get_db)
+):
+    return get_decision_distribution(db)
+
+
+@router.get("/threat-category-distribution")
+def threat_category_distribution(
+    db: Session = Depends(get_db)
+):
+    return get_threat_category_distribution(db)
+
+
+@router.get("/memory-usage-distribution")
+def memory_usage_distribution(
+    db: Session = Depends(get_db)
+):
+    return get_memory_usage_distribution(db)
+
+
+@router.get("/human-approval-vs-rejection")
+def human_approval_vs_rejection(
+    db: Session = Depends(get_db)
+):
+    return get_human_approval_vs_rejection(db)
+
+
+@router.get("/attack-severity-breakdown")
+def attack_severity_breakdown(
+    db: Session = Depends(get_db)
+):
+    return get_attack_severity_breakdown(db)
+
+
+@router.get("/ip-intelligence")
+def ip_intelligence(
+    db: Session = Depends(get_db)
+):
+    return get_ip_intelligence(db)

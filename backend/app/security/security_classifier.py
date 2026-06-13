@@ -27,6 +27,11 @@ ATTACK_EXAMPLES = {
         "Remember that I prefer Python",
         "Tell me about machine learning",
         "I work as a software engineer",
+        "Hi",
+        "Hi my name is Sharvani",
+        "My name is John",
+        "I am a user",
+        "Nice to meet you"
     ],
     "PROMPT_INJECTION": POISONING_DATASET["PROMPT_INJECTION"],
     "MEMORY_POISONING": (
@@ -62,7 +67,6 @@ ATTACK_EXAMPLES = {
 _ATTACK_CENTROIDS = {
     attack: mean_embedding([get_embedding(ex) for ex in examples])
     for attack, examples in ATTACK_EXAMPLES.items()
-    if attack != "SAFE"
 }
 
 RISK_LEVELS = {

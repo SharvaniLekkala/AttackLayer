@@ -10,7 +10,10 @@ from app.database.session import (
 from app.memory.vault import (
     get_all_memories,
     archive_memory,
-    get_memory_history
+    get_memory_history,
+    clear_episodic_memories,
+    clear_short_term_memories,
+    clear_long_term_memories
 )
 
 from app.database.models import (
@@ -216,3 +219,27 @@ def full_history(
         })
 
     return result
+
+
+@router.delete("/episodic")
+def clear_episodic(
+    db: Session = Depends(get_db)
+):
+    count = clear_episodic_memories(db)
+    return {"status": "success", "cleared_count": count}
+
+
+@router.delete("/short-term")
+def clear_short_term(
+    db: Session = Depends(get_db)
+):
+    count = clear_short_term_memories(db)
+    return {"status": "success", "cleared_count": count}
+
+
+@router.delete("/long-term")
+def clear_long_term(
+    db: Session = Depends(get_db)
+):
+    count = clear_long_term_memories(db)
+    return {"status": "success", "cleared_count": count}

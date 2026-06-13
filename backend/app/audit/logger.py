@@ -28,6 +28,7 @@ def log_security_event(
     execution_time_ms=0.0,
     final_decision="ALLOW",
     explanation=None,
+    memory_id=None
 ):
     event = AuditEvent(
         operation=operation,
@@ -53,6 +54,7 @@ def log_security_event(
         execution_time_ms=execution_time_ms,
         final_decision=final_decision,
         explanation=json.dumps(explanation or {}),
+        memory_id=memory_id,
     )
 
     db.add(event)

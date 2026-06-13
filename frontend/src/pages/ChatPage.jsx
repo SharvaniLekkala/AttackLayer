@@ -1,157 +1,324 @@
 import { useState, useRef, useEffect } from "react";
-import { sendChatMessage } from "../api/attacklayer";
-import MessageBubble from "../components/chat/MessageBubble";
-import ChatSidebar from "../components/chat/ChatSidebar";
 import {
-    getSessions,
-    createSession,
-    getSession,
-    updateSession,
-    deleteSession,
-    titleFromMessage,
-    bootstrapChatState
-} from "../utils/chatSessions";
+    sendChatMessage,
+    getHitlStatus
+} from "../api/attacklayer";
+import { useNavigate } from "react-router-dom";
 import "../styles/chat.css";
 
+const suggestions = [
+    "What security threats do you protect against?",
+    "Explain memory poisoning attacks",
+    "What is prompt injection?",
+    "How does HITL validation work?",
+];
+
+function formatTime(date) {
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function MessageBubble({ message }) {
+    const isUser = message.role === "user";
+    return (
+        <div className={`message-row ${isUser ? "user-row" : ""}`}>
+            {/* Avatar */}
+            <div className={`message-avatar ${isUser ? "user-avatar" : "assistant-avatar"}`}>
+                {isUser ? (
+                    "U"
+                ) : (
+                    <svg viewBox="0 0 24 24">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                    </svg>
+                )}
+            </div>
+            {/* Bubble */}
+            <div className="message-content">
+                <div className={`message-bubble ${isUser ? "user-bubble" : "assistant-bubble"}`}>
+                    {message.content}
+                </div>
+                <span className="message-time">{formatTime(message.time)}</span>
+            </div>
+        </div>
+    );
+}
+
+let sessionCounter = 0;
+
 function ChatPage() {
-
-    const initial = bootstrapChatState();
-
-    const [sessions, setSessions] = useState(initial.sessions);
-    const [activeId, setActiveId] = useState(initial.activeId);
-    const [messages, setMessages] = useState(initial.messages);
+    const navigate = useNavigate();
+    const [sessions, setSessions] = useState([
+        { id: "default", title: "New Chat", messages: [] },
+    ]);
+    const [activeId, setActiveId] = useState("default");
     const [input, setInput] = useState("");
     const [loading, setLoading] = useState(false);
     const messagesEndRef = useRef(null);
 
+    const activeSession = sessions.find((s) => s.id === activeId) || sessions[0];
+    const messages = activeSession?.messages || [];
+
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [messages, loading]);
+    }, [messages, loading, activeId]);
 
-    function refreshSessions() {
-        setSessions(getSessions());
-    }
-
-    function selectSession(sessionId) {
-        const session = getSession(sessionId);
-        if (!session) return;
-        setActiveId(sessionId);
-        setMessages(Array.isArray(session.messages) ? session.messages : []);
+    function getSessionTitle(text) {
+        const words = text.trim().split(" ");
+        return words.slice(0, 5).join(" ") + (words.length > 5 ? "…" : "");
     }
 
     function handleNewChat() {
-        const session = createSession();
-        refreshSessions();
-        setActiveId(session.id);
-        setMessages([]);
-        setInput("");
+        sessionCounter += 1;
+        const id = `session-${sessionCounter}`;
+        setSessions((prev) => [
+            ...prev,
+            { id, title: "New Chat", messages: [] },
+        ]);
+        setActiveId(id);
     }
 
-    function handleDelete(sessionId) {
-        const remaining = deleteSession(sessionId);
-        refreshSessions();
-
-        if (sessionId !== activeId) return;
-
-        if (remaining.length > 0) {
-            selectSession(remaining[0].id);
-            return;
-        }
-
-        const session = createSession();
-        refreshSessions();
-        setActiveId(session.id);
-        setMessages([]);
-    }
-
-    function persistMessages(sessionId, nextMessages, title) {
-        updateSession(sessionId, {
-            messages: nextMessages,
-            ...(title ? { title } : {})
+    function handleDeleteSession(id) {
+        setSessions((prev) => {
+            const filtered = prev.filter((s) => s.id !== id);
+            if (filtered.length === 0) {
+                return [{ id: "default", title: "New Chat", messages: [] }];
+            }
+            return filtered;
         });
-        refreshSessions();
+        if (activeId === id) {
+            setActiveId(sessions.find((s) => s.id !== id)?.id || "default");
+        }
     }
 
-    async function send() {
-        if (!input.trim() || loading || !activeId) return;
-
-        const userMessage = { role: "user", content: input };
-        const nextMessages = [...messages, userMessage];
-
-        setMessages(nextMessages);
-
-        const isFirstMessage = messages.length === 0;
-        const title = isFirstMessage ? titleFromMessage(input) : undefined;
-
-        persistMessages(activeId, nextMessages, title);
-
-        const current = input;
+    async function send(text) {
+        const msg = (text || input).trim();
+        if (!msg || loading) return;
         setInput("");
         setLoading(true);
 
+        const userMsg = { role: "user", content: msg, time: new Date() };
+
+        setSessions((prev) =>
+            prev.map((s) => {
+                if (s.id !== activeId) return s;
+                const updatedMsgs = [...s.messages, userMsg];
+                return {
+                    ...s,
+                    title: s.messages.length === 0 ? getSessionTitle(msg) : s.title,
+                    messages: updatedMsgs,
+                };
+            })
+        );
+
         try {
-            const response = await sendChatMessage(activeId, current);
-            const withReply = [
-                ...nextMessages,
-                { role: "assistant", content: response.response }
-            ];
-            setMessages(withReply);
-            persistMessages(activeId, withReply);
-        } catch {
-            const withError = [
-                ...nextMessages,
-                {
+            const res = await sendChatMessage(activeId, msg);
+            const aiMsg = {
+                role: "assistant",
+                content: res.response || res.message || "I couldn't process that request.",
+                time: new Date(),
+            };
+            setSessions((prev) =>
+                prev.map((s) => {
+                    if (s.id !== activeId) return s;
+                    return { ...s, messages: [...s.messages, aiMsg] };
+                })
+            );
+            if (res.hitl_request_id) {
+
+    const reqId = res.hitl_request_id;
+
+    const poll = setInterval(async () => {
+
+        try {
+
+            const status = await getHitlStatus(reqId);
+
+            if (status.resolved) {
+
+                clearInterval(poll);
+
+                const followUp = {
                     role: "assistant",
-                    content: "Sorry, something went wrong. Please try again."
-                }
-            ];
-            setMessages(withError);
-            persistMessages(activeId, withError);
+                    content: status.response,
+                    time: new Date(),
+                };
+
+                setSessions((prev) =>
+                    prev.map((s) => {
+                        if (s.id !== activeId) return s;
+                        return {
+                            ...s,
+                            messages: [
+                                ...s.messages,
+                                followUp
+                            ]
+                        };
+                    })
+                );
+            }
+
+        } catch {
+
+            clearInterval(poll);
+
+        }
+
+    }, 3000);
+
+}
+        }
+        
+        catch {
+            const errMsg = {
+                role: "assistant",
+                content: "Sorry, something went wrong. Please try again.",
+                time: new Date(),
+            };
+            setSessions((prev) =>
+                prev.map((s) => {
+                    if (s.id !== activeId) return s;
+                    return { ...s, messages: [...s.messages, errMsg] };
+                })
+            );
         } finally {
             setLoading(false);
         }
     }
 
     return (
-        <div className="chat-layout">
-            <ChatSidebar
-                sessions={sessions}
-                activeId={activeId}
-                onSelect={selectSession}
-                onNew={handleNewChat}
-                onDelete={handleDelete}
-            />
+        <div className="chat-page">
+            {/* === LEFT SIDEBAR === */}
+            <aside className="chat-sidebar">
+                {/* Brand */}
+                <div className="chat-sidebar-header">
+                    <div className="chat-brand-icon">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                        </svg>
+                    </div>
+                    <div className="chat-brand-text">
+                        <div className="chat-brand-name">AttackLayer</div>
+                        <div className="chat-brand-sub">AI-SOC</div>
+                    </div>
+                </div>
 
-            <div className="chat-main">
-                <div className="chat-messages">
-                    {messages.length === 0 && !loading && (
-                        <div className="chat-welcome">
-                            <h2>How can I help you today?</h2>
-                        </div>
-                    )}
-                    {messages.map((message, index) => (
-                        <MessageBubble
-                            key={index}
-                            sender={message.role === "user" ? "user" : "assistant"}
-                            text={message.content}
-                        />
+                {/* New chat */}
+                <div className="chat-sidebar-actions">
+                    <button className="new-chat-btn" onClick={handleNewChat}>
+                        <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        New Chat
+                    </button>
+                </div>
+
+                {/* History */}
+                <span className="chat-history-label">History</span>
+                <div className="chat-history-list">
+                    {sessions.map((s) => (
+                        <button
+                            key={s.id}
+                            className={`chat-history-item ${s.id === activeId ? "active" : ""}`}
+                            onClick={() => setActiveId(s.id)}
+                        >
+                            <svg viewBox="0 0 24 24">
+                                <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+                            </svg>
+                            <span className="chat-history-text">{s.title}</span>
+                            <button
+                                className="chat-history-delete"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteSession(s.id);
+                                }}
+                                title="Delete"
+                            >
+                                ×
+                            </button>
+                        </button>
                     ))}
-                    {loading && (
-                        <div className="chat-loading">
-                            <span className="typing-dot" />
-                            <span className="typing-dot" />
-                            <span className="typing-dot" />
+                </div>
+
+                {/* Footer */}
+                <div className="chat-sidebar-footer">
+                    <button
+                        className="dashboard-sidebar-btn"
+                        onClick={() => navigate("/dashboard")}
+                    >
+                        <svg viewBox="0 0 24 24">
+                            <rect x="3" y="3" width="7" height="7" rx="1"/>
+                            <rect x="14" y="3" width="7" height="7" rx="1"/>
+                            <rect x="3" y="14" width="7" height="7" rx="1"/>
+                            <rect x="14" y="14" width="7" height="7" rx="1"/>
+                        </svg>
+                        Open Dashboard
+                    </button>
+                </div>
+            </aside>
+
+            {/* === MAIN AREA === */}
+            <div className="chat-main">
+                {/* Top bar */}
+                <div className="chat-topbar">
+                    <div>
+                        <div className="chat-topbar-title">AttackLayer AI-SOC</div>
+                        <div className="chat-topbar-meta">Secured by threat detection pipeline</div>
+                    </div>
+                </div>
+
+                {/* Messages */}
+                <div className="chat-messages">
+                    {messages.length === 0 && !loading ? (
+                        <div className="chat-welcome">
+                            <div className="chat-welcome-icon">
+                                <svg viewBox="0 0 24 24">
+                                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                                </svg>
+                            </div>
+                            <h2>How can I help you today?</h2>
+                            <p>
+                                Powered by AttackLayer's AI Security Operations Center. All messages are scanned for threats before processing.
+                            </p>
+                            <div className="chat-suggestions">
+                                {suggestions.map((s, i) => (
+                                    <button
+                                        key={i}
+                                        className="suggestion-chip"
+                                        onClick={() => send(s)}
+                                    >
+                                        {s}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
+                    ) : (
+                        <>
+                            {messages.map((msg, i) => (
+                                <MessageBubble key={i} message={msg} />
+                            ))}
+                            {loading && (
+                                <div className="typing-row">
+                                    <div className="message-avatar assistant-avatar">
+                                        <svg viewBox="0 0 24 24">
+                                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                                        </svg>
+                                    </div>
+                                    <div className="typing-indicator">
+                                        <span className="typing-dot" />
+                                        <span className="typing-dot" />
+                                        <span className="typing-dot" />
+                                    </div>
+                                </div>
+                            )}
+                        </>
                     )}
                     <div ref={messagesEndRef} />
                 </div>
 
-                <div className="chat-input-area">
-                    <div className="chat-input">
+                {/* Input */}
+                <div className="chat-input-wrapper">
+                    <div className="chat-input-box">
                         <input
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
-                            placeholder="Message..."
+                            placeholder="Message AttackLayer AI..."
                             onKeyDown={(e) => {
                                 if (e.key === "Enter" && !e.shiftKey) {
                                     e.preventDefault();
@@ -161,13 +328,19 @@ function ChatPage() {
                             disabled={loading}
                         />
                         <button
-                            type="button"
-                            onClick={send}
+                            className="chat-send-btn"
+                            onClick={() => send()}
                             disabled={loading || !input.trim()}
                         >
-                            Send
+                            <svg viewBox="0 0 24 24">
+                                <line x1="22" y1="2" x2="11" y2="13"/>
+                                <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                            </svg>
                         </button>
                     </div>
+                    <p className="chat-input-hint">
+                        AttackLayer monitors all requests for threats in real-time
+                    </p>
                 </div>
             </div>
         </div>
