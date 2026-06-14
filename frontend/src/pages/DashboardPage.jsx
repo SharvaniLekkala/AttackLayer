@@ -83,7 +83,12 @@ const moduleCards = [
 
 function DashboardPage() {
     const navigate = useNavigate();
-    const [events, setEvents] = useState([]);
+    const [events, setEvents] = useState(() => {
+        try {
+            const cached = localStorage.getItem("attacklayer_dashboard_events");
+            return cached ? JSON.parse(cached) : [];
+        } catch { return []; }
+    });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
 
@@ -97,9 +102,13 @@ function DashboardPage() {
         try {
             const data = await getAuditEvents();
             setEvents(data);
+            localStorage.setItem("attacklayer_dashboard_events", JSON.stringify(data));
             setError("");
         } catch {
-            setError("Failed to load dashboard data.");
+            // Backend down — keep showing cached data, just show a soft warning
+            const cached = localStorage.getItem("attacklayer_dashboard_events");
+            if (!cached) setError("Backend offline. No cached data available.");
+            // If cache exists, events state already has it — no error shown
         } finally {
             setLoading(false);
         }

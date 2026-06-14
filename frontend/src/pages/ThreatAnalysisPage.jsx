@@ -154,14 +154,21 @@ const KPI_META = [
 ];
 
 function ThreatAnalysisPage() {
-    const [stats, setStats] = useState({});
-    const [trend, setTrend] = useState([]);
-    const [decisionDist, setDecisionDist] = useState([]);
-    const [threatCats, setThreatCats] = useState([]);
-    const [memUsage, setMemUsage] = useState({});
-    const [humanApproval, setHumanApproval] = useState({});
-    const [severity, setSeverity] = useState({});
-    const [ipIntel, setIpIntel] = useState([]);
+    function getCached(key, fallback) {
+        try {
+            const v = localStorage.getItem("attacklayer_threat_" + key);
+            return v ? JSON.parse(v) : fallback;
+        } catch { return fallback; }
+    }
+
+    const [stats, setStats] = useState(() => getCached("stats", {}));
+    const [trend, setTrend] = useState(() => getCached("trend", []));
+    const [decisionDist, setDecisionDist] = useState(() => getCached("decisionDist", []));
+    const [threatCats, setThreatCats] = useState(() => getCached("threatCats", []));
+    const [memUsage, setMemUsage] = useState(() => getCached("memUsage", {}));
+    const [humanApproval, setHumanApproval] = useState(() => getCached("humanApproval", {}));
+    const [severity, setSeverity] = useState(() => getCached("severity", {}));
+    const [ipIntel, setIpIntel] = useState(() => getCached("ipIntel", []));
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -191,22 +198,38 @@ function ThreatAnalysisPage() {
                 getAttackSeverityBreakdown(),
                 getIPIntelligence(),
             ]);
-            setStats(statsData || {});
-            setTrend(trendData || []);
-            setDecisionDist(decisionData || []);
-            setThreatCats(threatData || []);
-            setMemUsage(memData || {});
-            setHumanApproval(humanData || {});
-            setSeverity(sevData || {});
-            setIpIntel(ipData || []);
+            const updates = {
+                stats: statsData || {},
+                trend: trendData || [],
+                decisionDist: decisionData || [],
+                threatCats: threatData || [],
+                memUsage: memData || {},
+                humanApproval: humanData || {},
+                severity: sevData || {},
+                ipIntel: ipData || [],
+            };
+            setStats(updates.stats);
+            setTrend(updates.trend);
+            setDecisionDist(updates.decisionDist);
+            setThreatCats(updates.threatCats);
+            setMemUsage(updates.memUsage);
+            setHumanApproval(updates.humanApproval);
+            setSeverity(updates.severity);
+            setIpIntel(updates.ipIntel);
+            // Persist to localStorage
+            Object.entries(updates).forEach(([key, val]) => {
+                localStorage.setItem("attacklayer_threat_" + key, JSON.stringify(val));
+            });
         } catch (err) {
-            console.error("Failed to load threat analysis data", err);
+            console.error("Failed to load threat analysis data — showing cached data", err);
+            // State already initialized from cache in useState(); nothing more to do
         } finally {
             setLoading(false);
         }
     }
 
-    if (loading) {
+    const hasCachedData = stats && (stats.totalRequests > 0 || trend.length > 0 || threatCats.length > 0);
+    if (loading && !hasCachedData) {
         return (
             <div className="loading-state">
                 <div className="spinner" />
