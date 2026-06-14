@@ -125,9 +125,15 @@ function MemoryPanel({ type, title, desc, memories, onClear, accentClass, icon }
 }
 
 function MemoryVaultPage() {
-    const [episodic, setEpisodic] = useState([]);
-    const [shortTerm, setShortTerm] = useState([]);
-    const [longTerm, setLongTerm] = useState([]);
+    const [episodic, setEpisodic] = useState(() => {
+        try { return JSON.parse(localStorage.getItem("attacklayer_mem_episodic") || "[]"); } catch { return []; }
+    });
+    const [shortTerm, setShortTerm] = useState(() => {
+        try { return JSON.parse(localStorage.getItem("attacklayer_mem_shortterm") || "[]"); } catch { return []; }
+    });
+    const [longTerm, setLongTerm] = useState(() => {
+        try { return JSON.parse(localStorage.getItem("attacklayer_mem_longterm") || "[]"); } catch { return []; }
+    });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
 
@@ -159,19 +165,26 @@ function MemoryVaultPage() {
                         !st.includes(m))
             );
 
+            let finalEp, finalSt, finalLt;
             if (ep.length === 0 && st.length === 0 && lt.length === 0 && all.length > 0) {
                 const t = Math.ceil(all.length / 3);
-                setEpisodic(all.slice(0, t));
-                setShortTerm(all.slice(t, 2 * t));
-                setLongTerm(all.slice(2 * t));
+                finalEp = all.slice(0, t);
+                finalSt = all.slice(t, 2 * t);
+                finalLt = all.slice(2 * t);
             } else {
-                setEpisodic(ep);
-                setShortTerm(st);
-                setLongTerm(lt);
+                finalEp = ep; finalSt = st; finalLt = lt;
             }
+            setEpisodic(finalEp);
+            setShortTerm(finalSt);
+            setLongTerm(finalLt);
+            localStorage.setItem("attacklayer_mem_episodic", JSON.stringify(finalEp));
+            localStorage.setItem("attacklayer_mem_shortterm", JSON.stringify(finalSt));
+            localStorage.setItem("attacklayer_mem_longterm", JSON.stringify(finalLt));
             setError("");
         } catch {
-            setError("Failed to load memories.");
+            // Backend down — cached data already in state, don't overwrite
+            const hasCached = localStorage.getItem("attacklayer_mem_episodic");
+            if (!hasCached) setError("Failed to load memories.");
         } finally {
             setLoading(false);
         }

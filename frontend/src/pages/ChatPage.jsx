@@ -5,6 +5,14 @@ import {
 } from "../api/attacklayer";
 import { useNavigate } from "react-router-dom";
 import "../styles/chat.css";
+import {
+    bootstrapChatState,
+    createSession,
+    updateSession,
+    deleteSession as deleteSessionStorage,
+    titleFromMessage,
+    createSessionId,
+} from "../utils/chatSessions";
 
 const suggestions = [
     "What security threats do you protect against?",
@@ -13,9 +21,18 @@ const suggestions = [
     "How does HITL validation work?",
 ];
 
-function formatTime(date) {
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
+const formatTime = (time) => {
+    if (!time) return "--:--";
+
+    const date = new Date(time);
+
+    if (isNaN(date.getTime())) return "--:--";
+
+    return date.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+    });
+};
 
 function MessageBubble({ message }) {
     const isUser = message.role === "user";
@@ -42,14 +59,16 @@ function MessageBubble({ message }) {
     );
 }
 
-let sessionCounter = 0;
-
 function ChatPage() {
     const navigate = useNavigate();
-    const [sessions, setSessions] = useState([
-        { id: "default", title: "New Chat", messages: [] },
-    ]);
-    const [activeId, setActiveId] = useState("default");
+    const [sessions, setSessions] = useState(() => {
+        const state = bootstrapChatState();
+        return state.sessions;
+    });
+    const [activeId, setActiveId] = useState(() => {
+        const state = bootstrapChatState();
+        return state.activeId;
+    });
     const [input, setInput] = useState("");
     const [loading, setLoading] = useState(false);
     const messagesEndRef = useRef(null);
@@ -61,33 +80,25 @@ function ChatPage() {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages, loading, activeId]);
 
-    function getSessionTitle(text) {
-        const words = text.trim().split(" ");
-        return words.slice(0, 5).join(" ") + (words.length > 5 ? "…" : "");
-    }
 
     function handleNewChat() {
-        sessionCounter += 1;
-        const id = `session-${sessionCounter}`;
-        setSessions((prev) => [
-            ...prev,
-            { id, title: "New Chat", messages: [] },
-        ]);
-        setActiveId(id);
-    }
-
-    function handleDeleteSession(id) {
-        setSessions((prev) => {
-            const filtered = prev.filter((s) => s.id !== id);
-            if (filtered.length === 0) {
-                return [{ id: "default", title: "New Chat", messages: [] }];
-            }
-            return filtered;
-        });
-        if (activeId === id) {
-            setActiveId(sessions.find((s) => s.id !== id)?.id || "default");
+            const session = createSession();
+            setSessions((prev) => [session, ...prev]);
+            setActiveId(session.id);
         }
-    }
+    function handleDeleteSession(id) {
+            const remaining = deleteSessionStorage(id);
+            if (remaining.length === 0) {
+                const fresh = createSession();
+                setSessions([fresh]);
+                setActiveId(fresh.id);
+            } else {
+                setSessions(remaining);
+                if (activeId === id) {
+                    setActiveId(remaining[0].id);
+                }
+            }
+        }
 
     async function send(text) {
         const msg = (text || input).trim();
@@ -101,14 +112,15 @@ function ChatPage() {
             prev.map((s) => {
                 if (s.id !== activeId) return s;
                 const updatedMsgs = [...s.messages, userMsg];
+                const newTitle = s.messages.length === 0 ? titleFromMessage(msg) : s.title;
+                updateSession(s.id, { messages: updatedMsgs, title: newTitle });
                 return {
                     ...s,
-                    title: s.messages.length === 0 ? getSessionTitle(msg) : s.title,
+                    title: newTitle,
                     messages: updatedMsgs,
                 };
             })
         );
-
         try {
             const res = await sendChatMessage(activeId, msg);
             const aiMsg = {
@@ -119,7 +131,9 @@ function ChatPage() {
             setSessions((prev) =>
                 prev.map((s) => {
                     if (s.id !== activeId) return s;
-                    return { ...s, messages: [...s.messages, aiMsg] };
+                    const updatedMsgs = [...s.messages, aiMsg];
+                    updateSession(s.id, { messages: updatedMsgs });
+                    return { ...s, messages: updatedMsgs };
                 })
             );
             if (res.hitl_request_id) {
@@ -143,17 +157,13 @@ function ChatPage() {
                 };
 
                 setSessions((prev) =>
-                    prev.map((s) => {
-                        if (s.id !== activeId) return s;
-                        return {
-                            ...s,
-                            messages: [
-                                ...s.messages,
-                                followUp
-                            ]
-                        };
-                    })
-                );
+                            prev.map((s) => {
+                                if (s.id !== activeId) return s;
+                                const updatedMsgs = [...s.messages, followUp];
+                                updateSession(s.id, { messages: updatedMsgs });
+                                return { ...s, messages: updatedMsgs };
+                            })
+                        );
             }
 
         } catch {
@@ -176,7 +186,9 @@ function ChatPage() {
             setSessions((prev) =>
                 prev.map((s) => {
                     if (s.id !== activeId) return s;
-                    return { ...s, messages: [...s.messages, errMsg] };
+                    const updatedMsgs = [...s.messages, errMsg];
+                    updateSession(s.id, { messages: updatedMsgs });
+                    return { ...s, messages: updatedMsgs };
                 })
             );
         } finally {
@@ -213,7 +225,7 @@ function ChatPage() {
                 <span className="chat-history-label">History</span>
                 <div className="chat-history-list">
                     {sessions.map((s) => (
-                        <button
+                        <div
                             key={s.id}
                             className={`chat-history-item ${s.id === activeId ? "active" : ""}`}
                             onClick={() => setActiveId(s.id)}
@@ -232,7 +244,7 @@ function ChatPage() {
                             >
                                 ×
                             </button>
-                        </button>
+                        </div>
                     ))}
                 </div>
 
