@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { getHitlQueue, approveHitlRequest, rejectHitlRequest } from "../api/attacklayer";
+import { getHitlQueue, approveHitlRequest, rejectHitlRequest, getResolvedHitlItems } from "../api/attacklayer";
 import "../styles/hitl.css";
 
 let toastId = 0;
@@ -93,12 +93,19 @@ function HITLPage() {
     const [loading, setLoading] = useState(true);
     const [approved, setApproved] = useState(0);
     const [rejected, setRejected] = useState(0);
+    const [answeredItems, setAnsweredItems] = useState([]);
     const { toasts, addToast } = useToasts();
 
     const loadQueue = useCallback(async () => {
         try {
-            const data = await getHitlQueue();
-            setQueue(data);
+            const [queueData, resolvedData] = await Promise.all([
+                getHitlQueue(),
+                getResolvedHitlItems(),
+            ]);
+            setQueue(queueData);
+            setAnsweredItems(resolvedData);
+            setApproved(resolvedData.filter((r) => r.status === "approved").length);
+            setRejected(resolvedData.filter((r) => r.status === "rejected").length);
         } catch {
             addToast("Failed to load HITL queue", "error");
         } finally {
@@ -114,10 +121,20 @@ function HITLPage() {
 
     async function handleApprove(id) {
         try {
+            const req = queue.find((r) => r.id === id);
             const res = await approveHitlRequest(id);
             setQueue((prev) => prev.filter((r) => r.id !== id));
             setApproved((n) => n + 1);
-             addToast(`✓ Approved: ${res.response}`, "success");
+            setAnsweredItems((prev) => [
+                {
+                    id,
+                    prompt: req?.prompt,
+                    status: "approved",
+                    response: res.response || "(no response returned)",
+                },
+                ...prev,
+            ]);
+            addToast("✓ Request approved", "success");
         } catch {
             addToast("Failed to approve request", "error");
         }
@@ -125,10 +142,20 @@ function HITLPage() {
 
     async function handleReject(id) {
         try {
+            const req = queue.find((r) => r.id === id);
             await rejectHitlRequest(id);
             setQueue((prev) => prev.filter((r) => r.id !== id));
             setRejected((n) => n + 1);
-            addToast("✕ Request rejected and blocked by security policy", "error");
+            setAnsweredItems((prev) => [
+                {
+                    id,
+                    prompt: req?.prompt,
+                    status: "rejected",
+                    response: "Request rejected and blocked by security policy.",
+                },
+                ...prev,
+            ]);
+            addToast("✕ Request rejected", "error");
         } catch {
             addToast("Failed to reject request", "error");
         }
@@ -212,7 +239,47 @@ function HITLPage() {
                     ))}
                 </div>
             )}
+            {/* Resolved Items */}
+            {answeredItems.length > 0 && (
+                <div style={{ marginTop: "2rem" }}>
+                    <div className="hitl-queue-header">
+                        <div className="hitl-queue-title">Resolved Requests</div>
+                    </div>
+                    <div className="hitl-queue">
+                        {answeredItems.map((item) => (
+                            <div key={item.id} className="hitl-card" style={{ opacity: 0.9 }}>
+                                <div className="hitl-card-header">
+                                    <div>
+                                        <div className="hitl-card-id">Request #{item.id}</div>
+                                        <div className="hitl-card-tags">
+                                            <span className={`hitl-tag ${item.status === "approved" ? "severity-low" : "severity-critical"}`}>
+                                                {item.status === "approved" ? "✓ Approved" : "✕ Rejected"}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="hitl-card-body">
+                                    {item.prompt && (
+                                        <div className="hitl-field">
+                                            <div className="hitl-field-label">User Prompt</div>
+                                            <div className="hitl-field-value prompt-text">{item.prompt}</div>
+                                        </div>
+                                    )}
+                                    <div className="hitl-field">
+                                        <div className="hitl-field-label">
+                                            {item.status === "approved" ? "AI Response" : "Security Action"}
+                                        </div>
+                                        <div className="hitl-field-value reason-text">{item.response}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
+            {/* Toasts */}
+            <div className="hitl-toast-area"></div>
             {/* Toasts */}
             <div className="hitl-toast-area">
                 {toasts.map((t) => (

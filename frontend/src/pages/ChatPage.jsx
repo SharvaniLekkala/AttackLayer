@@ -80,6 +80,91 @@ function ChatPage() {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages, loading, activeId]);
 
+    const [pendingHitlIds, setPendingHitlIds] = useState(() =>
+        JSON.parse(localStorage.getItem("pendingHitl") || "[]")
+    );
+
+    useEffect(() => {
+        if (pendingHitlIds.length === 0) return;
+        const intervals = [];
+
+        pendingHitlIds.forEach(({ reqId, sessionId }) => {
+            const poll = setInterval(async () => {
+                try {
+                    const status = await getHitlStatus(reqId);
+                    if (status.resolved) {
+                        clearInterval(poll);
+                        const current = JSON.parse(localStorage.getItem("pendingHitl") || "[]");
+                        const updated = current.filter((p) => p.reqId !== reqId);
+                        localStorage.setItem("pendingHitl", JSON.stringify(updated));
+                        setPendingHitlIds(updated);
+
+                        const followUp = {
+                            role: "assistant",
+                            content: status.response,
+                            time: new Date().toISOString(),
+                        };
+                        setSessions((prev) =>
+                            prev.map((s) => {
+                                if (s.id !== sessionId) return s;
+                                const updatedMsgs = [...s.messages, followUp];
+                                updateSession(s.id, { messages: updatedMsgs });
+                                return { ...s, messages: updatedMsgs };
+                            })
+                        );
+                    }
+                } catch {
+                    clearInterval(poll);
+                }
+            }, 3000);
+            intervals.push(poll);
+        });
+
+        return () => intervals.forEach(clearInterval);
+    }, [pendingHitlIds]);
+    // On mount, resume polling for any pending HITL requests
+    useEffect(() => {
+        const intervals = [];
+
+        function checkPending() {
+            const pending = JSON.parse(localStorage.getItem("pendingHitl") || "[]");
+            if (pending.length === 0) return;
+
+            pending.forEach(({ reqId, sessionId }) => {
+                const poll = setInterval(async () => {
+                    try {
+                        const status = await getHitlStatus(reqId);
+                        if (status.resolved) {
+                            clearInterval(poll);
+                            // Remove from pending
+                            const current = JSON.parse(localStorage.getItem("pendingHitl") || "[]");
+                            localStorage.setItem("pendingHitl", JSON.stringify(current.filter((p) => p.reqId !== reqId)));
+
+                            const followUp = {
+                                role: "assistant",
+                                content: status.response,
+                                time: new Date().toISOString(),
+                            };
+                            setSessions((prev) =>
+                                prev.map((s) => {
+                                    if (s.id !== sessionId) return s;
+                                    const updatedMsgs = [...s.messages, followUp];
+                                    updateSession(s.id, { messages: updatedMsgs });
+                                    return { ...s, messages: updatedMsgs };
+                                })
+                            );
+                        }
+                    } catch {
+                        clearInterval(poll);
+                    }
+                }, 3000);
+                intervals.push(poll);
+            });
+        }
+
+        checkPending();
+        return () => intervals.forEach(clearInterval);
+    }, []);
 
     function handleNewChat() {
             const session = createSession();
@@ -106,7 +191,11 @@ function ChatPage() {
         setInput("");
         setLoading(true);
 
-        const userMsg = { role: "user", content: msg, time: new Date() };
+        const userMsg = {
+    role: "user",
+    content: msg,
+    time: new Date().toISOString(),
+};
 
         setSessions((prev) =>
             prev.map((s) => {
@@ -125,8 +214,10 @@ function ChatPage() {
             const res = await sendChatMessage(activeId, msg);
             const aiMsg = {
                 role: "assistant",
-                content: res.response || res.message || "I couldn't process that request.",
-                time: new Date(),
+                content: res.hitl_request_id
+                    ? `⏳ This request requires human approval (Request #${res.hitl_request_id}). The response will appear here once approved.`
+                    : res.response || res.message || "I couldn't process that request.",
+                time: new Date().toISOString(),
             };
             setSessions((prev) =>
                 prev.map((s) => {
@@ -137,51 +228,19 @@ function ChatPage() {
                 })
             );
             if (res.hitl_request_id) {
-
-    const reqId = res.hitl_request_id;
-
-    const poll = setInterval(async () => {
-
-        try {
-
-            const status = await getHitlStatus(reqId);
-
-            if (status.resolved) {
-
-                clearInterval(poll);
-
-                const followUp = {
-                    role: "assistant",
-                    content: status.response,
-                    time: new Date(),
-                };
-
-                setSessions((prev) =>
-                            prev.map((s) => {
-                                if (s.id !== activeId) return s;
-                                const updatedMsgs = [...s.messages, followUp];
-                                updateSession(s.id, { messages: updatedMsgs });
-                                return { ...s, messages: updatedMsgs };
-                            })
-                        );
+                const pending = JSON.parse(localStorage.getItem("pendingHitl") || "[]");
+                const newEntry = { reqId: res.hitl_request_id, sessionId: activeId };
+                const updated = [...pending, newEntry];
+                localStorage.setItem("pendingHitl", JSON.stringify(updated));
+                setPendingHitlIds(updated);
             }
-
-        } catch {
-
-            clearInterval(poll);
-
-        }
-
-    }, 3000);
-
-}
         }
         
         catch {
             const errMsg = {
                 role: "assistant",
                 content: "Sorry, something went wrong. Please try again.",
-                time: new Date(),
+                time: new Date().toISOString(),
             };
             setSessions((prev) =>
                 prev.map((s) => {

@@ -208,7 +208,7 @@ def process_user_message(db: Session, user_id: str, message: str):
             memories_used = ranked_memories
 
         # Log the event with ALLOW_WITH_WARNING final decision
-        log_security_event(
+        hitl_event = log_security_event(
             db=db,
             operation=operation,
             decision=security_result["decision"],  # This will be "ALLOW_WITH_WARNING"
@@ -243,6 +243,7 @@ def process_user_message(db: Session, user_id: str, message: str):
 
         return {
             "response": hitl_response,
+            "hitl_request_id": hitl_event.id,
             "retrieved_memories": (retrieval_result["safe_memories"] if retrieval_result else []),
             "security": security_result,
             "memory": None,
