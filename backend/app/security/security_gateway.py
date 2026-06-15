@@ -1,7 +1,10 @@
 from app.security.intent_classifier import classify_intent
 from app.security.security_classifier import classify_security
 from app.security.sensitive_detector import detect_sensitive_data
-from app.security.semantic_classifier import classify_memory
+from app.security.semantic_classifier import (
+    classify_memory,
+    classify_memory_type
+)
 from app.security.explainability import build_explanation
 
 
@@ -10,7 +13,7 @@ def evaluate_security(text: str, db=None, user_id=None):
     security_result = classify_security(text)
     sensitive_result = detect_sensitive_data(text)
     classification_result = classify_memory(text)
-
+    memory_type_result = classify_memory_type(text)
     decision = security_result["decision"]
     risk_score = security_result["risk_score"]
 
@@ -45,8 +48,17 @@ def evaluate_security(text: str, db=None, user_id=None):
         "operation": intent_result["operation"],
         "operation_confidence": intent_result["confidence"],
         "operation_scores": intent_result.get("scores", {}),
-        "category": classification_result["category"],
-        "category_confidence": classification_result["confidence"],
+        "category":
+            classification_result["category"],
+
+        "category_confidence":
+            classification_result["confidence"],
+
+        "memory_type":
+            memory_type_result["memory_type"],
+
+        "memory_type_confidence":
+            memory_type_result["confidence"],
         "attack_type": security_result["attack_type"],
         "attack_confidence": security_result["confidence"],
         "risk_level": security_result["risk_level"],

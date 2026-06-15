@@ -148,21 +148,30 @@ function MemoryVaultPage() {
             const all = await getAllMemories();
             const ep = all.filter(
                 (m) =>
-                    m.category === "EPISODIC" ||
-                    (m.source && m.source.toLowerCase().includes("session"))
+                    m.memory_type === "EPISODIC" ||
+                    (
+                        m.source &&
+                        m.source.toLowerCase().includes("session")
+                    )
             );
             const st = all.filter(
                 (m) =>
-                    m.category === "SHORT_TERM" ||
-                    (m.importance_score != null && m.importance_score < 0.5 && !ep.includes(m))
+                    m.memory_type === "SHORT_TERM" ||
+                    (
+                        m.importance_score != null &&
+                        m.importance_score < 0.5 &&
+                        !ep.includes(m)
+                    )
             );
             const lt = all.filter(
                 (m) =>
-                    m.category === "LONG_TERM" ||
-                    (m.trust_score > 0.7 &&
+                    m.memory_type === "LONG_TERM" ||
+                    (
+                        m.trust_score > 0.7 &&
                         m.importance_score >= 0.5 &&
                         !ep.includes(m) &&
-                        !st.includes(m))
+                        !st.includes(m)
+                    )
             );
 
             let finalEp, finalSt, finalLt;

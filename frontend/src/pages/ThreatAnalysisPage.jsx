@@ -147,10 +147,6 @@ const KPI_META = [
     { key: "blockedAttacks", label: "Blocked", icon: "🚫" },
     { key: "allowWithWarning", label: "Warnings", icon: "⚠️" },
     { key: "humanApproved", label: "Human Approved", icon: "👍" },
-    { key: "humanRejected", label: "Human Rejected", icon: "👎" },
-    { key: "promptInjectionAttempts", label: "Prompt Injections", icon: "💉" },
-    { key: "memoryPoisoningAttempts", label: "Memory Poisoning", icon: "☣️" },
-    { key: "falseFactInjectionAttempts", label: "False Fact Injection", icon: "🎭" },
 ];
 
 function ThreatAnalysisPage() {
@@ -169,11 +165,13 @@ function ThreatAnalysisPage() {
     const [humanApproval, setHumanApproval] = useState(() => getCached("humanApproval", {}));
     const [severity, setSeverity] = useState(() => getCached("severity", {}));
     const [ipIntel, setIpIntel] = useState(() => getCached("ipIntel", []));
+    const [ipSearch, setIpSearch] = useState('');
+    const [ipStatusFilter, setIpStatusFilter] = useState('All');
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         load();
-        const timer = setInterval(load, 10000);
+        const timer = setInterval(load, 5000);
         return () => clearInterval(timer);
     }, []);
 
@@ -397,48 +395,125 @@ function ThreatAnalysisPage() {
                 <div className="ip-intel-header">
                     <h2>🌐 IP Intelligence</h2>
                 </div>
+                {/* ===== IP INTELLIGENCE CONTROLS ===== */}
+                <div className="ip-intel-controls">
+                    <div className="ip-intel-search-wrap">
+                        <input
+                            type="text"
+                            placeholder="Search IP, country, city, threat type..."
+                            value={ipSearch}
+                            onChange={(e) => setIpSearch(e.target.value)}
+                            className="ip-intel-search"
+                        />
+                    </div>
+                    <div className="ip-intel-filter-wrap">
+                        <label htmlFor="ip-status-filter">Status: </label>
+                        <select
+                            id="ip-status-filter"
+                            value={ipStatusFilter}
+                            onChange={(e) => setIpStatusFilter(e.target.value)}
+                            className="ip-intel-filter"
+                        >
+                            <option value="All">All</option>
+                            <option value="Trusted">Trusted</option>
+                            <option value="Suspicious">Suspicious</option>
+                            <option value="Blocked">Blocked</option>
+                        </select>
+                    </div>
+                    <button onClick={load} className="ip-intel-refresh">
+                        🔄 Refresh
+                    </button>
+                    <span className="ip-intel-updated">
+                        Last updated: {new Date().toLocaleTimeString()}
+                    </span>
+                </div>
+
+                {/* ===== IP INTELLIGENCE TABLE ===== */}
                 <div className="ip-intel-table-wrap">
                     <table className="ip-intel-table">
                         <thead>
                             <tr>
                                 <th>Source IP</th>
                                 <th>Country</th>
+                                <th>City</th>
                                 <th>Risk Score</th>
                                 <th>Reputation</th>
+                                <th>Threat Type</th>
+                                <th>Request Count</th>
+                                <th>Last Seen</th>
                                 <th>Status</th>
-                                <th>Attempts</th>
+                                <th>Action</th>
                             </tr>
                         </thead>
                         <tbody>
                             {ipIntel.length > 0 ? (
-                                ipIntel.map((ip, i) => {
-                                    const risk = ip.riskScore || ip.risk_score || 0;
-                                    const riskCls =
-                                        risk > 0.7
-                                            ? "risk-high"
-                                            : risk > 0.4
-                                            ? "risk-mid"
-                                            : "risk-low";
-                                    return (
-                                        <tr key={i}>
-                                            <td><span className="ip-code">{ip.ipAddress || ip.ip || "—"}</span></td>
-                                            <td>{ip.country || "Unknown"}</td>
-                                            <td className={`risk-score-cell ${riskCls}`}>
-                                                {risk.toFixed(2)}
-                                            </td>
-                                            <td>{ip.reputation || "—"}</td>
-                                            <td>
-                                                <span className={ip.status === "BLOCKED" ? "badge badge-block" : "badge badge-allow"}>
-                                                    {ip.status || "—"}
-                                                </span>
-                                            </td>
-                                            <td style={{ fontWeight: 600 }}>{ip.attempts || 0}</td>
-                                        </tr>
-                                    );
-                                })
+                                // Filter and sort the data
+                                [...ipIntel]
+                                    .filter(ip => {
+                                        // Text search
+                                        const searchLower = ipSearch.toLowerCase();
+                                        const matchesSearch =
+                                            !ipSearch ||
+                                            (ip.ipAddress && ip.ipAddress.toLowerCase().includes(searchLower)) ||
+                                            (ip.country && ip.country.toLowerCase().includes(searchLower)) ||
+                                            (ip.city && ip.city.toLowerCase().includes(searchLower)) ||
+                                            (ip.threatType && ip.threatType.toLowerCase().includes(searchLower));
+                                        // Status filter
+                                        const matchesStatus =
+                                            ipStatusFilter === 'All' ||
+                                            ip.status === ipStatusFilter;
+                                        return matchesSearch && matchesStatus;
+                                    })
+                                    .sort((a, b) => {
+                                        // Sort by risk score descending
+                                        const riskA = a.riskScore || a.risk_score || 0;
+                                        const riskB = b.riskScore || b.risk_score || 0;
+                                        return riskB - riskA;
+                                    })
+                                    .map((ip, i) => {
+                                        const risk = ip.riskScore || ip.risk_score || 0;
+                                        const riskCls =
+                                            risk > 0.7
+                                                ? "risk-high"
+                                                : risk > 0.4
+                                                ? "risk-mid"
+                                                : "risk-low";
+                                        const statusCls =
+                                            ip.status === 'TRUSTED'
+                                                ? 'status-trusted'
+                                                : ip.status === 'SUSPICIOUS'
+                                                ? 'status-suspicious'
+                                                : ip.status === 'BLOCKED'
+                                                ? 'status-blocked'
+                                                : '';
+                                        return (
+                                            <tr key={i}>
+                                                <td><span className="ip-code">{ip.ipAddress || ip.ip || "—"}</span></td>
+                                                <td>{ip.country || "Unknown"}</td>
+                                                <td>{ip.city || "Unknown"}</td>
+                                                <td className={`risk-score-cell ${riskCls}`} title={`Risk Score: ${risk}`}>
+                                                    {risk.toFixed(2)}
+                                                </td>
+                                                <td title={`Reputation: ${ip.reputation}`}>{ip.reputation || "—"}</td>
+                                                <td title={`Threat Type: ${ip.threatType}`}>{ip.threatType || "Unknown"}</td>
+                                                <td style={{ fontWeight: 600 }}>{ip.requestCount || ip.attempts || 0}</td>
+                                                <td>{ip.lastSeen || "—"}</td>
+                                                <td>
+                                                    <span className={`status-badge ${statusCls}`} title={`Status: ${ip.status}`}>
+                                                        {ip.status || "—"}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <button className="ip-action-btn" title="Review IP">
+                                                        🔍 Review
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
                             ) : (
                                 <tr>
-                                    <td colSpan={6} style={{ textAlign: "center", color: "var(--color-text-muted)", padding: "32px 16px", fontSize: 13 }}>
+                                    <td colSpan={10} style={{ textAlign: "center", color: "var(--color-text-muted)", padding: "32px 16px", fontSize: 13 }}>
                                         No IP intelligence data available
                                     </td>
                                 </tr>

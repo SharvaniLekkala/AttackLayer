@@ -476,15 +476,17 @@ def create_memory(
         existing_memory
     ):
 
-        existing_memory.active = False
-        existing_memory.status = "ARCHIVED"
+        # For research purposes, keep all memories active - don't deactivate
+        # existing_memory.active = False
+        # existing_memory.status = "ARCHIVED"
         existing_memory.conflict_count = (
             (getattr(existing_memory, "conflict_count", 0) or 0) + 1
         )
 
-        remove_memory_embedding(
-            existing_memory.id
-        )
+        # Keep embeddings for all memories for research
+        # remove_memory_embedding(
+        #     existing_memory.id
+        # )
 
         if (
             attack_type
@@ -550,7 +552,10 @@ def create_memory(
             security_result[
                 "category"
             ],
-
+        memory_type=
+    security_result[
+        "memory_type"
+    ],
         trust_score=
             trust_result[
                 "trust_score"
@@ -594,17 +599,11 @@ def create_memory(
         parent_memory_id=
     parent_memory_id,
 
-        active=(
-    False
-    if final_decision == "ALLOW_WITH_WARNING"
-    else True
-),
+        # For research purposes, keep all memories active
+        active=True,
 
-status=(
-    "PENDING_REVIEW"
-    if final_decision == "ALLOW_WITH_WARNING"
-    else "ACTIVE"
-),
+        # For research purposes, keep all memories as ACTIVE status
+        status="ACTIVE",
         verification_count=1,
 
         preference_stability_score=
@@ -668,12 +667,16 @@ status=(
 
     "category":
         security_result["category"],
-
+    "memory_type":
+    security_result[
+        "memory_type"
+    ],
     "trust_score":
         trust_result["trust_score"],
 
     "security":
         security_result
+    
 
 }
 
@@ -749,57 +752,29 @@ def get_memory_history(
 def clear_episodic_memories(db: Session):
     """
     Clear all episodic memories.
+    For research purposes, no memories are actually deleted - all memories are preserved.
     Episodic memories are defined as those with category "EPISODIC" or source containing "session".
     """
-    memories_to_clear = db.query(Memory).filter(
-        (Memory.category == "EPISODIC") | (Memory.source.like("%session%"))
-    ).all()
-
-    for memory in memories_to_clear:
-        # Remove embedding first
-        remove_memory_embedding(memory.id)
-        # Delete the memory
-        db.delete(memory)
-
-    db.commit()
-    return len(memories_to_clear)
+    # For research purposes, preserve all memories - return 0 to indicate none were cleared
+    return 0
 
 
 def clear_short_term_memories(db: Session):
     """
     Clear all short-term memories.
+    For research purposes, no memories are actually deleted - all memories are preserved.
     Short-term memories are defined as those with category "SHORT_TERM" or importance_score < 0.5.
     """
-    memories_to_clear = db.query(Memory).filter(
-        (Memory.category == "SHORT_TERM") | (Memory.importance_score < 0.5)
-    ).all()
-
-    for memory in memories_to_clear:
-        # Remove embedding first
-        remove_memory_embedding(memory.id)
-        # Delete the memory
-        db.delete(memory)
-
-    db.commit()
-    return len(memories_to_clear)
+    # For research purposes, preserve all memories - return 0 to indicate none were cleared
+    return 0
 
 
 def clear_long_term_memories(db: Session):
     """
     Clear all long-term memories.
+    For research purposes, no memories are actually deleted - all memories are preserved.
     Long-term memories are defined as those with category "LONG_TERM" or
     (trust_score > 0.7 and importance_score >= 0.5).
     """
-    memories_to_clear = db.query(Memory).filter(
-        (Memory.category == "LONG_TERM") |
-        ((Memory.trust_score > 0.7) & (Memory.importance_score >= 0.5))
-    ).all()
-
-    for memory in memories_to_clear:
-        # Remove embedding first
-        remove_memory_embedding(memory.id)
-        # Delete the memory
-        db.delete(memory)
-
-    db.commit()
-    return len(memories_to_clear)
+    # For research purposes, preserve all memories - return 0 to indicate none were cleared
+    return 0

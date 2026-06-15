@@ -22,9 +22,33 @@ class Memory(Base):
 
     user_id = Column(String, nullable=False)
 
-    fact = Column(String, nullable=False)
+    fact = Column(
+        String,
+        nullable=False
+    )
 
-    category = Column(String, default="UNKNOWN")
+    # Semantic Category
+    # Examples:
+    # FOOD_PREFERENCE
+    # PROFESSION
+    # LOCATION
+    # TOOL_POLICY
+    # etc.
+
+    category = Column(
+        String,
+        default="UNKNOWN"
+    )
+
+    # Memory Type
+    # EPISODIC
+    # SHORT_TERM
+    # LONG_TERM
+
+    memory_type = Column(
+        String,
+        default="SHORT_TERM"
+    )
 
     # ------------------------------
     # Trust System
@@ -552,11 +576,16 @@ class AuditEvent(Base):
         String,
         default=""
     )
-    
+
+    ip_address = Column(
+        String,
+        nullable=True
+    )
+
     memory_id = Column(
-    Integer,
-    nullable=True
-)
+        Integer,
+        nullable=True
+    )
     created_at = Column(
         DateTime,
         default=datetime.utcnow

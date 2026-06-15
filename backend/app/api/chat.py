@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 from fastapi import Depends
+from fastapi import Request
 
 from sqlalchemy.orm import Session
 
@@ -24,12 +25,15 @@ router = APIRouter(
 @router.post("/")
 def chat(
 
+    request: Request,
     user_id: str,
 
     message: str,
 
     db: Session = Depends(
+
         get_db
+
     )
 
 ):
@@ -40,6 +44,8 @@ def chat(
 
         user_id=user_id,
 
-        message=message
+        message=message,
+
+        ip_address=request.client.host
 
     )

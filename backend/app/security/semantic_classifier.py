@@ -1,3 +1,5 @@
+import re
+
 from app.security.semantic_engine import (
     get_embedding,
     cosine_similarity,
@@ -17,6 +19,9 @@ CATEGORY_EXAMPLES = {
         "My favorite programming language is Java",
         "I like coding in Rust",
         "I use TypeScript for development",
+        "I usually code in Python",
+        "I often code in Java",
+        "I write code in C++",
     ],
 
     "SPORT_PREFERENCE": [
@@ -47,6 +52,8 @@ CATEGORY_EXAMPLES = {
         "My project deadline is June 30",
         "I own a blue bicycle",
         "My team meets on Friday",
+        "I have an interview next week",
+        "I need to attend a seminar next Monday",
     ],
 
     "PROFESSION": [
@@ -80,7 +87,8 @@ CATEGORY_EXAMPLES = {
         "My name is John",
         "I am 25 years old",
         "My birthday is in June",
-        "I was born in 2001"
+        "I was born in 2001",
+        "My name is Sharvani"
     ],
 
     # =====================================
@@ -280,3 +288,128 @@ def classify_query_categories(text, limit=1):
         ]
 
     return [category for category, _ in scores[:limit]]
+# =====================================================
+# MEMORY TYPE CLASSIFIER
+# =====================================================
+
+EPISODIC_KEYWORDS = [
+
+    "today",
+    "yesterday",
+    "this morning",
+    "this afternoon",
+    "this evening",
+    "just now",
+    "i had",
+    "i ate",
+    "i watched",
+    "i visited",
+    "i met",
+    "i went",
+    "last night",
+    "earlier today",
+    "recently",
+    "lately",
+    "once",
+    "one time",
+    "the other day"
+
+]
+
+SHORT_TERM_KEYWORDS = [
+
+    "meeting",
+    "deadline",
+    "tomorrow",
+    "next week",
+    "next month",
+    "remind",
+    "appointment",
+    "schedule",
+    "exam",
+    "due",
+    "upcoming",
+    "soon",
+    "in the near future"
+
+]
+
+LONG_TERM_KEYWORDS = [
+
+    "my name",
+    "i am",
+    "i work",
+    "i work as",
+    "i study",
+    "i live",
+    "i prefer",
+    "i enjoy",
+    "i really enjoy",
+    "i love",
+    "i like",
+    "i usually",
+    "i often",
+    "i could eat",
+    "i always",
+    "i tend to",
+    "my goal is",
+    "my favourite",
+    "my favorite",
+    "remember that",
+    "store this",
+    "save this",
+    "my profession"
+
+]
+
+
+def classify_memory_type(text):
+
+    lowered = text.lower()
+
+    if any(
+        re.search(r'\b' + re.escape(keyword) + r'\b', lowered)
+        for keyword in EPISODIC_KEYWORDS
+    ):
+
+        return {
+
+            "memory_type": "EPISODIC",
+
+            "confidence": 0.90
+
+        }
+
+    if any(
+        re.search(r'\b' + re.escape(keyword) + r'\b', lowered)
+        for keyword in SHORT_TERM_KEYWORDS
+    ):
+
+        return {
+
+            "memory_type": "SHORT_TERM",
+
+            "confidence": 0.85
+
+        }
+
+    if any(
+        re.search(r'\b' + re.escape(keyword) + r'\b', lowered)
+        for keyword in LONG_TERM_KEYWORDS
+    ):
+
+        return {
+
+            "memory_type": "LONG_TERM",
+
+            "confidence": 0.95
+
+        }
+
+    return {
+
+        "memory_type": "LONG_TERM",
+
+        "confidence": 0.70
+
+    }
