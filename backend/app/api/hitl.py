@@ -221,24 +221,56 @@ def get_hitl_status(
             "resolved": False
         }
 
-    response = (
-        "Got it. I've updated your memory."
-    )
-
-    if human_decision == "REJECTED":
-        response = (
-            "⚠ Memory update was rejected during "
-            "human review. Original memory preserved."
-        )
+    if human_decision == "APPROVED":
+        if event.memory_id:
+            response = "✓ Approved. Your memory has been saved and is now active."
+        else:
+            response = "✓ Your request was approved by a human reviewer and has been processed."
+    else:
+        if event.memory_id:
+            response = "⚠ Rejected. The memory update was blocked by human review."
+        else:
+            response = "⚠ Your request was reviewed and rejected by a human reviewer. It has been blocked."
 
     return {
-
         "resolved": True,
-
-        "decision":
-            human_decision,
-
-        "response":
-            response
-
+        "decision": human_decision,
+        "response": response
     }
+@router.get("/resolved")
+def get_resolved_hitl_items(db: Session = Depends(get_db)):
+    """
+    Get all HITL requests that have already been approved or rejected.
+    """
+    import json
+    events = (
+        db.query(AuditEvent)
+        .filter(AuditEvent.final_decision.in_(["ALLOW", "BLOCK"]))
+        .order_by(AuditEvent.id.desc())
+        .limit(50)
+        .all()
+    )
+
+    result = []
+    for event in events:
+        explanation = event.explanation or {}
+        if isinstance(explanation, str):
+            try:
+                explanation = json.loads(explanation)
+            except Exception:
+                explanation = {}
+
+        human_decision = explanation.get("human_decision")
+        if not human_decision:
+            continue  # was auto-allowed/blocked, not HITL
+
+        result.append({
+            "id": event.id,
+            "prompt": event.payload,
+            "status": "approved" if human_decision == "APPROVED" else "rejected",
+            "response": "Got it. I've updated your memory." if human_decision == "APPROVED"
+                        else "Request rejected and blocked by security policy.",
+            "timestamp": event.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+        })
+
+    return result

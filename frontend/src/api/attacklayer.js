@@ -23,7 +23,10 @@ export async function getHitlQueue() {
     const response = await API.get("/hitl/queue");
     return response.data;
 }
-
+export async function getResolvedHitlItems() {
+    const response = await API.get("/hitl/resolved");
+    return response.data;
+}
 export async function approveHitlRequest(requestId) {
     const response = await API.post(`/hitl/approve/${requestId}`);
     return response.data;
