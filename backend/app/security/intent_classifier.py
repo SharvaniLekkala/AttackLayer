@@ -136,12 +136,21 @@ def classify_intent(text: str, db=None, user_id=None):
                 "i prefer ",
                 "i live ",
                 "i work ",
+                "i work as ",
                 "i study ",
+                "i enjoy ",
+                "i really enjoy ",
+                "i usually ",
+                "i often ",
+                "i could eat ",
+                "i always ",
+                "i tend to ",
                 "i am doing ",
                 "my favorite ",
                 "my favourite ",
                 "my career ",
                 "my hometown ",
+                "my goal is ",
             )
         )
     )

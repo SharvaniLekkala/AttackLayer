@@ -130,7 +130,7 @@ def should_store_memory(text):
         return {
             "store": False,
             "store_score": 0.0,
-            "ignore_score": 1.0,
+            "ignore_score": 1.0
         }
 
     embedding = get_embedding(text)
@@ -173,7 +173,43 @@ def should_store_memory(text):
 
         "i work",
 
-        "i prefer"
+        "i work as",
+
+        "i study",
+
+        "i prefer",
+
+        "i enjoy",
+
+        "i really enjoy",
+
+        "i love",
+
+        "i like",
+
+        "i usually",
+
+        "i often",
+
+        "i could eat",
+
+        "i always",
+
+        "i tend to",
+
+        "my goal is",
+
+        "my favourite",
+
+        "my favorite",
+
+        "remember that",
+
+        "store this",
+
+        "save this",
+
+        "my profession"
 
     ]
 
@@ -200,20 +236,27 @@ def should_store_memory(text):
         "store":
 
             store_score >
+
             ignore_score,
 
         "store_score":
 
             round(
+
                 store_score,
+
                 4
+
             ),
 
         "ignore_score":
 
             round(
+
                 ignore_score,
+
                 4
+
             )
 
     }

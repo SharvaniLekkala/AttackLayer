@@ -111,7 +111,7 @@ def _handle_memory_store(
     }
 
 
-def process_user_message(db: Session, user_id: str, message: str):
+def process_user_message(db: Session, user_id: str, message: str, ip_address: str = None):
     start_time = time.time()
 
     security_result = evaluate_security(
@@ -161,6 +161,7 @@ def process_user_message(db: Session, user_id: str, message: str):
             execution_time_ms=elapsed,
             final_decision="BLOCK",
             explanation=security_result.get("explanation"),
+            ip_address=ip_address,
         )
 
         block_response = (
@@ -229,6 +230,7 @@ def process_user_message(db: Session, user_id: str, message: str):
             execution_time_ms=elapsed,
             final_decision="ALLOW_WITH_WARNING",  # Explicitly set for HITL queue
             explanation=security_result.get("explanation"),
+            ip_address=ip_address,
         )
 
         # Return response indicating it's waiting for human approval
@@ -260,7 +262,11 @@ def process_user_message(db: Session, user_id: str, message: str):
     if operation == "GENERAL_CHAT":
         secure_context = ""
         if _should_use_personal_context(message):
-            retrieval_result = _retrieve_context(db, user_id, message)
+            retrieval_result = retrieve_memories(
+                db=db,
+                user_id=user_id,
+                query=message,
+            )
             ranked_memories = retrieval_result.get("ranked_memories", [])
             memories_used = ranked_memories
             secure_context = build_secure_context(
@@ -318,6 +324,7 @@ def process_user_message(db: Session, user_id: str, message: str):
             ),
             memories_used=[m.get("content", "") for m in memories_used],
             trust_scores=[m.get("trust_score") for m in memories_used],
+            ip_address=ip_address,
         )
 
         reflection = generate_reflection(
@@ -407,6 +414,7 @@ def process_user_message(db: Session, user_id: str, message: str):
             execution_time_ms=elapsed,
             final_decision=security_result["decision"],
             explanation=security_result.get("explanation"),
+            ip_address=ip_address,
         )
 
         reflection = generate_reflection(
@@ -436,7 +444,7 @@ def process_user_message(db: Session, user_id: str, message: str):
             security_result=security_result,
         )
         elapsed = round((time.time() - start_time) * 1000, 2)
-        _log_memory_event(db, message, security_result, result, elapsed)
+        _log_memory_event(db, message, security_result, result, elapsed, ip_address=ip_address)
         result["dashboard"] = _build_dashboard_payload(
             security_result, None, None, elapsed,
             (result.get("memory") or {}).get("decision", security_result["decision"]),
@@ -454,12 +462,13 @@ def process_user_message(db: Session, user_id: str, message: str):
         )
         elapsed = round((time.time() - start_time) * 1000, 2)
         event = _log_memory_event(
-        db,
-        message,
-        security_result,
-        result,
-        elapsed
-    )
+            db,
+            message,
+            security_result,
+            result,
+            elapsed,
+            ip_address=ip_address
+        )
 
         if (result.get("memory") or {}).get("status") == "pending_review":
             result["hitl_request_id"] = event.id
@@ -494,6 +503,7 @@ def process_user_message(db: Session, user_id: str, message: str):
         execution_time_ms=elapsed,
         final_decision=security_result["decision"],
         explanation=security_result.get("explanation"),
+        ip_address=ip_address,
     )
 
     return {
@@ -508,7 +518,7 @@ def process_user_message(db: Session, user_id: str, message: str):
     }
 
 
-def _log_memory_event(db, message, security_result, result, elapsed):
+def _log_memory_event(db, message, security_result, result, elapsed, ip_address=None):
     memory = result.get("memory") or {}
     return log_security_event(
         db=db,
@@ -542,8 +552,9 @@ def _log_memory_event(db, message, security_result, result, elapsed):
         final_decision=memory.get("decision", security_result["decision"]),
         explanation=security_result.get("explanation"),
         memory_id=memory.get(
-    "memory_id"
-),
+            "memory_id"
+        ),
+        ip_address=ip_address,
     )
 
 
