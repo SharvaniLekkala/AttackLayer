@@ -4,13 +4,40 @@ import {
     clearEpisodicMemory,
     clearShortTermMemory,
     clearLongTermMemory,
+    deleteMemory,
+    archiveMemory,
+    getMemoryHistory,
+    getMemoryTrust,
 } from "../api/attacklayer";
 import "../styles/memory-vault.css";
 
-function MemoryItem({ mem }) {
+function MemoryItem({ mem, onRefresh }) {
+    const [detail, setDetail] = useState(null);
     const trust = mem.trust_score || 0;
     const trustClass =
         trust >= 0.7 ? "trust-high" : trust >= 0.4 ? "trust-mid" : "trust-low";
+
+    async function handleDelete() {
+        if (!window.confirm("Delete this memory permanently?")) return;
+        await deleteMemory(mem.id);
+        onRefresh();
+    }
+
+    async function handleArchive() {
+        await archiveMemory(mem.id);
+        onRefresh();
+    }
+
+    async function handleHistory() {
+        const history = await getMemoryHistory(mem.id);
+        setDetail({ type: "history", data: history });
+    }
+
+    async function handleTrust() {
+        const trustData = await getMemoryTrust(mem.id);
+        setDetail({ type: "trust", data: trustData });
+    }
+
     return (
         <div className="memory-item">
             <div className="memory-item-fact">{mem.fact || "—"}</div>
@@ -19,24 +46,40 @@ function MemoryItem({ mem }) {
                     Trust: {trust.toFixed(2)}
                 </span>
                 {mem.category && (
-                    <span className="memory-meta-chip">
-                        {mem.category}
-                    </span>
+                    <span className="memory-meta-chip">{mem.category}</span>
+                )}
+                {mem.memory_type && (
+                    <span className="memory-meta-chip">{mem.memory_type}</span>
                 )}
                 {mem.source && (
-                    <span className="memory-meta-chip">
-                        {mem.source}
-                    </span>
+                    <span className="memory-meta-chip">{mem.source}</span>
                 )}
                 <span className="memory-meta-chip">
                     {new Date(mem.updated_at || mem.created_at || Date.now()).toLocaleDateString()}
                 </span>
             </div>
+            <div className="memory-item-meta" style={{ marginTop: 6 }}>
+                <button className="clear-btn" style={{ padding: "4px 8px", fontSize: 11 }} onClick={handleTrust}>Trust</button>
+                <button className="clear-btn" style={{ padding: "4px 8px", fontSize: 11 }} onClick={handleHistory}>History</button>
+                <button className="clear-btn" style={{ padding: "4px 8px", fontSize: 11 }} onClick={handleArchive}>Archive</button>
+                <button className="clear-btn" style={{ padding: "4px 8px", fontSize: 11 }} onClick={handleDelete}>Delete</button>
+            </div>
+            {detail && (
+                <div className="memory-item-meta" style={{ marginTop: 8, fontSize: 12 }}>
+                    {detail.type === "trust" && (
+                        <span>{detail.data.trust_explanation?.summary || `Trust: ${detail.data.trust_score}`}</span>
+                    )}
+                    {detail.type === "history" && (
+                        <span>{detail.data.length} version(s) — latest: {detail.data[0]?.new_fact || mem.fact}</span>
+                    )}
+                    <button className="clear-btn" style={{ padding: "2px 6px", fontSize: 10, marginLeft: 8 }} onClick={() => setDetail(null)}>Close</button>
+                </div>
+            )}
         </div>
     );
 }
 
-function MemoryPanel({ type, title, desc, memories, onClear, accentClass, icon }) {
+function MemoryPanel({ type, title, desc, memories, onClear, onRefresh, accentClass, icon }) {
     const [confirming, setConfirming] = useState(false);
     const [clearing, setClearing] = useState(false);
 
@@ -71,7 +114,7 @@ function MemoryPanel({ type, title, desc, memories, onClear, accentClass, icon }
                         </div>
                     ) : (
                         memories.map((mem, i) => (
-                            <MemoryItem key={mem.id || i} mem={mem} />
+                            <MemoryItem key={mem.id || i} mem={mem} onRefresh={onRefresh} />
                         ))
                     )}
                 </div>
@@ -230,6 +273,7 @@ function MemoryVaultPage() {
                     title="Episodic Memory"
                     desc="Session-specific memories · Temporary context"
                     memories={episodic}
+                    onRefresh={load}
                     onClear={async () => {
                         try { await clearEpisodicMemory(); setEpisodic([]); } catch { setError("Failed to clear episodic memory."); }
                     }}
@@ -246,6 +290,7 @@ function MemoryVaultPage() {
                     title="Short-Term Memory"
                     desc="Recent interactions · Active conversation memory"
                     memories={shortTerm}
+                    onRefresh={load}
                     onClear={async () => {
                         try { await clearShortTermMemory(); setShortTerm([]); } catch { setError("Failed to clear short-term memory."); }
                     }}
@@ -261,6 +306,7 @@ function MemoryVaultPage() {
                     title="Long-Term Memory"
                     desc="Persistent knowledge · Stored trusted information"
                     memories={longTerm}
+                    onRefresh={load}
                     onClear={async () => {
                         try { await clearLongTermMemory(); setLongTerm([]); } catch { setError("Failed to clear long-term memory."); }
                     }}

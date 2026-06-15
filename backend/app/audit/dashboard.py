@@ -42,13 +42,13 @@ def get_ip_intelligence(db):
         else:
             reputation = "Poor"
 
-        # Status: Trusted, Suspicious, Blocked
+        # Status: Trusted, Suspicious, Blocked (Title Case for frontend)
         if blocked_count > 0:
-            status = "BLOCKED"
+            status = "Blocked"
         elif risk_score >= 0.7:
-            status = "SUSPICIOUS"
+            status = "Suspicious"
         else:
-            status = "TRUSTED"
+            status = "Trusted"
 
         # Action based on status
         if status == "BLOCKED":
@@ -380,26 +380,8 @@ def get_security_timeline(db):
 
 
 def get_attack_statistics(db):
-    events = db.query(AuditEvent).all()
-
-    total_events = len(events)
-    blocked_events = len([e for e in events if e.decision == "BLOCK"])
-    threat_events = len([e for e in events if e.threat != "SAFE"])
-
-    block_rate = (blocked_events / total_events * 100) if total_events > 0 else 0
-    threat_rate = (threat_events / total_events * 100) if total_events > 0 else 0
-
-    # Average risk score
-    avg_risk = sum(e.risk_score for e in events) / total_events if total_events > 0 else 0
-
-    return {
-        "total_events": total_events,
-        "blocked_events": blocked_events,
-        "threat_events": threat_events,
-        "block_rate": round(block_rate, 2),
-        "threat_rate": round(threat_rate, 2),
-        "average_risk_score": round(avg_risk, 4)
-    }
+    from app.analytics.metrics_service import get_attack_statistics as _stats
+    return _stats(db)
 
 
 def get_decision_distribution(db):
@@ -439,55 +421,19 @@ def get_threat_category_distribution(db):
 
 
 def get_memory_usage_distribution(db):
-    # This would typically come from memory usage stats, but for now return placeholder
-    return [
-        {"memory_type": "SHORT_TERM", "count": 0, "percentage": 0},
-        {"memory_type": "LONG_TERM", "count": 0, "percentage": 0},
-        {"memory_type": "EPISODIC", "count": 0, "percentage": 0}
-    ]
+    from app.analytics.metrics_service import get_memory_usage_distribution as _mem
+    result = _mem(db)
+    return result.get("array", [])
 
 
 def get_human_approval_vs_rejection(db):
-    events = db.query(AuditEvent).filter(AuditEvent.final_decision.in_(["ALLOW_WITH_WARNING", "BLOCK"])).all()
-
-    allowed_with_warning = len([e for e in events if e.final_decision == "ALLOW_WITH_WARNING"])
-    blocked = len([e for e in events if e.final_decision == "BLOCK"])
-
-    total = allowed_with_warning + blocked
-    if total == 0:
-        total = 1
-
-    return [
-        {"action": "Human Approval (Allow with Warning)", "count": allowed_with_warning, "percentage": round((allowed_with_warning / total) * 100, 2)},
-        {"action": "Human Rejection (Block)", "count": blocked, "percentage": round((blocked / total) * 100, 2)}
-    ]
+    from app.analytics.metrics_service import get_human_approval_vs_rejection as _human
+    return _human(db).get("array", [])
 
 
 def get_attack_severity_breakdown(db):
-    events = db.query(AuditEvent).filter(AuditEvent.threat != "SAFE").all()
-
-    severity_counts = {"LOW": 0, "MEDIUM": 0, "HIGH": 0, "CRITICAL": 0}
-
-    for event in events:
-        # Use risk_score to determine severity
-        risk = event.risk_score
-        if risk >= 0.8:
-            severity_counts["CRITICAL"] += 1
-        elif risk >= 0.6:
-            severity_counts["HIGH"] += 1
-        elif risk >= 0.3:
-            severity_counts["MEDIUM"] += 1
-        else:
-            severity_counts["LOW"] += 1
-
-    total = sum(severity_counts.values())
-    if total == 0:
-        total = 1
-
-    return [
-        {"severity": level, "count": count, "percentage": round((count / total) * 100, 2)}
-        for level, count in severity_counts.items()
-    ]
+    from app.analytics.metrics_service import get_attack_severity_breakdown as _sev
+    return _sev(db).get("array", [])
 
 
 def get_attack_simulator(db):
@@ -505,54 +451,8 @@ def get_attack_simulator(db):
 
 
 def get_trust_breakdown(db):
-    # Get detailed trust score breakdown
-    events = db.query(AuditEvent).all()
-
-    trust_ranges = {
-        "0.0-0.1": 0,
-        "0.1-0.2": 0,
-        "0.2-0.3": 0,
-        "0.3-0.4": 0,
-        "0.4-0.5": 0,
-        "0.5-0.6": 0,
-        "0.6-0.7": 0,
-        "0.7-0.8": 0,
-        "0.8-0.9": 0,
-        "0.9-1.0": 0
-    }
-
-    for event in events:
-        # Using risk_score as inverse of trust for simplicity
-        trust = 1.0 - min(event.risk_score, 1.0)
-        if trust <= 0.1:
-            trust_ranges["0.0-0.1"] += 1
-        elif trust <= 0.2:
-            trust_ranges["0.1-0.2"] += 1
-        elif trust <= 0.3:
-            trust_ranges["0.2-0.3"] += 1
-        elif trust <= 0.4:
-            trust_ranges["0.3-0.4"] += 1
-        elif trust <= 0.5:
-            trust_ranges["0.4-0.5"] += 1
-        elif trust <= 0.6:
-            trust_ranges["0.5-0.6"] += 1
-        elif trust <= 0.7:
-            trust_ranges["0.6-0.7"] += 1
-        elif trust <= 0.8:
-            trust_ranges["0.7-0.8"] += 1
-        elif trust <= 0.9:
-            trust_ranges["0.8-0.9"] += 1
-        else:
-            trust_ranges["0.9-1.0"] += 1
-
-    total = sum(trust_ranges.values())
-    if total == 0:
-        total = 1
-
-    return [
-        {"trust_range": range_key, "count": count, "percentage": round((count / total) * 100, 2)}
-        for range_key, count in trust_ranges.items()
-    ]
+    from app.analytics.metrics_service import get_trust_score_distribution
+    return get_trust_score_distribution(db)
 
 
 def get_user_risk_profile(db):

@@ -1,11 +1,12 @@
 """
-V2 Intent Classifier — semantic embedding based, no keyword rules.
+V2 Intent Classifier — prototype attention based.
 """
 
-from app.security.semantic_engine import (
-    get_embedding,
-    cosine_similarity,
-)
+from app.neurosymbolic.embeddings import get_embedding
+from app.neurosymbolic.prototype_bank import get_intent_prototypes
+from app.neurosymbolic.similarity import get_similarity_engine
+
+_engine = get_similarity_engine()
 
 INTENT_EXAMPLES = {
     "NORMAL_CHAT": [
@@ -93,19 +94,12 @@ OPERATION_MAP = {
     "UNKNOWN": "GENERAL_CHAT",
 }
 
-_INTENT_EMBEDDINGS = {
-    intent: [get_embedding(ex) for ex in examples]
-    for intent, examples in INTENT_EXAMPLES.items()
-}
-
-
-def _max_similarity(embedding, prototypes):
-    if not prototypes:
-        return 0.0
-    return max(
-        cosine_similarity(embedding, proto)
-        for proto in prototypes
-    )
+def _intent_scores(embedding):
+    prototypes = get_intent_prototypes()
+    return {
+        intent: round(_engine.score(embedding, protos), 4)
+        for intent, protos in prototypes.items()
+    }
 
 
 def classify_intent(text: str, db=None, user_id=None):
@@ -115,11 +109,7 @@ def classify_intent(text: str, db=None, user_id=None):
     )
 
     embedding = get_embedding(text)
-
-    scores = {
-        intent: round(_max_similarity(embedding, protos), 4)
-        for intent, protos in _INTENT_EMBEDDINGS.items()
-    }
+    scores = _intent_scores(embedding)
 
     intent = max(scores, key=scores.get)
     confidence = scores[intent]
@@ -171,7 +161,18 @@ def classify_intent(text: str, db=None, user_id=None):
                 .first()
                 is not None
             )
-            if has_category_memory:
+            has_preference_memory = (
+                "prefer" in lowered
+                and db.query(Memory)
+                .filter(
+                    Memory.user_id == user_id,
+                    Memory.active == True,
+                    Memory.fact.ilike("%prefer%"),
+                )
+                .first()
+                is not None
+            )
+            if has_category_memory or has_preference_memory:
                 operation = "UPDATE"
         intent = "MEMORY_UPDATE" if operation == "UPDATE" else "MEMORY_STORE"
         confidence = max(
@@ -191,14 +192,17 @@ def classify_intent(text: str, db=None, user_id=None):
                 "do you remember ",
                 "tell me my ",
                 "recall my ",
+                "what do you remember",
             )
         )
         or "about me" in lowered
     )
-    if (
+    if stripped.endswith("?") and personal_query:
+        intent = "MEMORY_QUERY"
+        confidence = max(scores.get("MEMORY_QUERY", 0.0), 0.85)
+    elif (
         not declarative_memory
-        and
-        (stripped.endswith("?") or personal_query)
+        and (stripped.endswith("?") or personal_query)
         and query_score >= scores.get("MEMORY_STORE", 0.0) - 0.08
         and query_score >= scores.get("MEMORY_UPDATE", 0.0) - 0.08
     ):

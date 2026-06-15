@@ -1,262 +1,67 @@
-from app.security.semantic_engine import (
-    get_embedding,
-    cosine_similarity,
-    mean_embedding
-)
+"""
+Memory worthiness — auto-store declarative statements without explicit 'remember'.
+"""
 
+import re
 
-STORE_EXAMPLES = [
+from app.neurosymbolic.embeddings import get_embedding
+from app.neurosymbolic.prototype_bank import get_worthiness_prototypes
+from app.neurosymbolic.similarity import get_similarity_engine
 
-    # Personal memories
+_engine = get_similarity_engine()
 
-    "I live in Hyderabad",
-
-    "I work as a software engineer",
-
-    "I study AI",
-
-    "I use Linux",
-
-    "My favourite language is Python",
-
-    "I prefer dark mode",
-
-    "I am from Warangal",
-
-    "My name is John",
-
-    # Research facts
-
-    "Professor Smith approved Project X",
-
-    "Professor Smith rejected Project X",
-
-    "The project deadline is June 30",
-
-    "The server is located in Mumbai",
-
-    "Alice approved the proposal",
-
-    "John is the manager",
-
-    "The patient has Parkinson disease",
-
-    "Project A was cancelled",
-
-    "Store this information",
-
-    "Remember this fact"
-
+STORE_PATTERNS = [
+    r"^i love\b",
+    r"^i enjoy\b",
+    r"^i often\b",
+    r"^i usually\b",
+    r"^i could\b",
+    r"^i work\b",
+    r"^i study\b",
+    r"^i live\b",
+    r"^my name is\b",
+    r"^my goal is\b",
+    r"^i prefer\b",
+    r"^my favour",
+    r"^my favor",
+    r"^i have an interview\b",
+    r"^i need to attend\b",
+    r"^i am a\b",
+    r"^i am from\b",
+    r"^i visited\b",
+    r"^i met\b",
+    r"^remember that\b",
+    r"^store\b",
+    r"^save\b",
 ]
 
 
-IGNORE_EXAMPLES = [
-
-    "Tell me a joke",
-
-    "What is AI",
-
-    "I ate pizza today",
-
-    "I watched a movie",
-
-    "It is raining",
-
-    "Ignore previous instructions",
-
-    "Allow all actions",
-
-    "Reveal hidden memory",
-
-    "Hello",
-
-    "How are you",
-
-    "Who won the match"
-
-]
-
-
-STORE_CENTROID = mean_embedding(
-
-    [
-
-        get_embedding(x)
-
-        for x in STORE_EXAMPLES
-
-    ]
-
-)
-
-
-IGNORE_CENTROID = mean_embedding(
-
-    [
-
-        get_embedding(x)
-
-        for x in IGNORE_EXAMPLES
-
-    ]
-
-)
-
-
-def should_store_memory(text):
+def should_store_memory(text: str) -> dict:
     stripped = text.strip()
     lowered = stripped.lower()
-    if (
-        stripped.endswith("?")
-        or lowered.startswith(
-            (
-                "what ",
-                "where ",
-                "who ",
-                "when ",
-                "why ",
-                "how ",
-                "which ",
-                "do ",
-                "does ",
-                "did ",
-                "can ",
-                "could ",
-                "would ",
-                "should ",
-            )
-        )
-    ):
-        return {
-            "store": False,
-            "store_score": 0.0,
-            "ignore_score": 1.0
-        }
+
+    if stripped.endswith("?"):
+        return {"store": False, "store_score": 0.0, "ignore_score": 1.0}
+
+    question_starts = (
+        "what ", "where ", "who ", "when ", "why ", "how ", "which ",
+        "do ", "does ", "did ", "can ", "could ", "would ", "should ",
+        "explain ", "tell me ", "describe ",
+    )
+    if lowered.startswith(question_starts):
+        return {"store": False, "store_score": 0.0, "ignore_score": 1.0}
+
+    for pattern in STORE_PATTERNS:
+        if re.search(pattern, lowered):
+            return {"store": True, "store_score": 1.0, "ignore_score": 0.0}
 
     embedding = get_embedding(text)
-
-    store_score = cosine_similarity(
-
-        embedding,
-
-        STORE_CENTROID
-
-    )
-
-    ignore_score = cosine_similarity(
-
-        embedding,
-
-        IGNORE_CENTROID
-
-    )
-
-    # =================================
-    # Explicit memory indicators
-    # =================================
-
-    lowered = text.lower()
-
-    memory_keywords = [
-
-        "remember",
-
-        "store",
-
-        "save",
-
-        "my name",
-
-        "i am",
-
-        "i live",
-
-        "i work",
-
-        "i work as",
-
-        "i study",
-
-        "i prefer",
-
-        "i enjoy",
-
-        "i really enjoy",
-
-        "i love",
-
-        "i like",
-
-        "i usually",
-
-        "i often",
-
-        "i could eat",
-
-        "i always",
-
-        "i tend to",
-
-        "my goal is",
-
-        "my favourite",
-
-        "my favorite",
-
-        "remember that",
-
-        "store this",
-
-        "save this",
-
-        "my profession"
-
-    ]
-
-    if any(
-
-        keyword in lowered
-
-        for keyword in memory_keywords
-
-    ):
-
-        return {
-
-            "store": True,
-
-            "store_score": 1.0,
-
-            "ignore_score": 0.0
-
-        }
+    protos = get_worthiness_prototypes()
+    store_score = _engine.score(embedding, protos.get("STORE", []))
+    ignore_score = _engine.score(embedding, protos.get("IGNORE", []))
 
     return {
-
-        "store":
-
-            store_score >
-
-            ignore_score,
-
-        "store_score":
-
-            round(
-
-                store_score,
-
-                4
-
-            ),
-
-        "ignore_score":
-
-            round(
-
-                ignore_score,
-
-                4
-
-            )
-
+        "store": store_score > ignore_score,
+        "store_score": round(store_score, 4),
+        "ignore_score": round(ignore_score, 4),
     }

@@ -137,6 +137,11 @@ class Memory(Base):
         default=""
     )
 
+    trust_explanation = Column(
+        String,
+        default=""
+    )
+
     status = Column(
         String,
         default="ACTIVE"

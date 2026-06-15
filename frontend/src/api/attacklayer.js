@@ -43,6 +43,26 @@ export async function getAllMemories() {
     return response.data;
 }
 
+export async function deleteMemory(memoryId) {
+    const response = await API.delete(`/memory/${memoryId}`);
+    return response.data;
+}
+
+export async function archiveMemory(memoryId) {
+    const response = await API.post(`/memory/archive/${memoryId}`);
+    return response.data;
+}
+
+export async function getMemoryHistory(memoryId) {
+    const response = await API.get(`/memory/history/${memoryId}`);
+    return response.data;
+}
+
+export async function getMemoryTrust(memoryId) {
+    const response = await API.get(`/memory/trust/${memoryId}`);
+    return response.data;
+}
+
 export async function clearEpisodicMemory() {
     const response = await API.delete("/memory/episodic");
     return response.data;
@@ -57,32 +77,85 @@ export async function clearLongTermMemory() {
     const response = await API.delete("/memory/long-term");
     return response.data;
 }
+
 export const getHitlStatus = async (requestId) => {
-    const response = await API.get(
-        `/hitl/status/${requestId}`
-    );
+    const response = await API.get(`/hitl/status/${requestId}`);
     return response.data;
 };
+
+function normalizeAttackStats(raw) {
+    return {
+        totalRequests: raw.total_requests ?? raw.total_events ?? 0,
+        allowedRequests: raw.allowed_events ?? raw.allowed ?? 0,
+        blockedAttacks: raw.blocked_events ?? raw.blocked ?? 0,
+        allowWithWarning: raw.allow_with_warning ?? 0,
+        humanApproved: raw.human_approved ?? 0,
+        humanRejected: raw.human_rejected ?? 0,
+        promptInjectionAttempts: raw.prompt_injections ?? 0,
+        memoryPoisoningAttempts: raw.memory_poisoning ?? 0,
+        falseFactInjectionAttempts: raw.false_fact_injections ?? 0,
+        attackSuccessRate: raw.attack_success_rate ?? 0,
+        defenseEffectiveness: raw.defense_effectiveness ?? 0,
+        trustScoreAverage: raw.trust_score_average ?? raw.average_trust_score ?? 0,
+        falsePositiveRate: raw.false_positive_rate ?? 0,
+        falseNegativeRate: raw.false_negative_rate ?? 0,
+    };
+}
+
+function normalizeMemoryUsage(raw) {
+    if (raw.episodic !== undefined) {
+        return {
+            episodic: raw.episodic ?? 0,
+            shortTerm: raw.shortTerm ?? 0,
+            longTerm: raw.longTerm ?? 0,
+        };
+    }
+    if (Array.isArray(raw)) {
+        const map = Object.fromEntries(raw.map((r) => [r.memory_type, r.count]));
+        return {
+            episodic: map.EPISODIC ?? 0,
+            shortTerm: map.SHORT_TERM ?? 0,
+            longTerm: map.LONG_TERM ?? 0,
+        };
+    }
+    return { episodic: 0, shortTerm: 0, longTerm: 0 };
+}
+
+function normalizeHumanApproval(raw) {
+    if (raw.approved !== undefined) {
+        return { approved: raw.approved ?? 0, rejected: raw.rejected ?? 0 };
+    }
+    if (Array.isArray(raw)) {
+        const approved = raw.find((r) => r.action?.toLowerCase().includes("approv"));
+        const rejected = raw.find((r) => r.action?.toLowerCase().includes("reject"));
+        return {
+            approved: approved?.count ?? 0,
+            rejected: rejected?.count ?? 0,
+        };
+    }
+    return { approved: 0, rejected: 0 };
+}
+
+function normalizeSeverity(raw) {
+    if (raw.critical !== undefined) {
+        return raw;
+    }
+    if (Array.isArray(raw)) {
+        const map = Object.fromEntries(raw.map((r) => [r.severity?.toLowerCase(), r.count]));
+        return {
+            critical: map.critical ?? 0,
+            high: map.high ?? 0,
+            medium: map.medium ?? 0,
+            low: map.low ?? 0,
+        };
+    }
+    return { critical: 0, high: 0, medium: 0, low: 0 };
+}
+
 /* ===== ATTACK STATISTICS ===== */
 export async function getAttackStatistics() {
     const response = await API.get("/audit/attack-statistics");
-    const raw = response.data;
-
-    // Normalize backend shape to frontend expectations
-    return {
-        totalRequests:
-            (raw.general_chat || 0) + (raw.memory_reads || 0) + (raw.memory_writes || 0) + (raw.blocked || 0),
-        allowedRequests:
-            raw.allowed ||
-            (raw.general_chat || 0) + (raw.memory_reads || 0) + (raw.memory_writes || 0),
-        blockedAttacks: raw.blocked || 0,
-        allowWithWarning: raw.allow_with_warning || 0,
-        humanApproved: raw.human_approved || 0,
-        humanRejected: raw.human_rejected || 0,
-        promptInjectionAttempts: raw.prompt_injections || 0,
-        memoryPoisoningAttempts: raw.memory_poisoning || 0,
-        falseFactInjectionAttempts: raw.false_fact_injections || 0,
-    };
+    return normalizeAttackStats(response.data);
 }
 
 /* ===== THREAT ANALYSIS ENDPOINTS ===== */
@@ -116,7 +189,7 @@ export async function getThreatCategoryDistribution() {
 export async function getMemoryUsageDistribution() {
     try {
         const response = await API.get("/audit/memory-usage-distribution");
-        return response.data;
+        return normalizeMemoryUsage(response.data);
     } catch {
         return { episodic: 0, shortTerm: 0, longTerm: 0 };
     }
@@ -125,7 +198,7 @@ export async function getMemoryUsageDistribution() {
 export async function getHumanApprovalVsRejection() {
     try {
         const response = await API.get("/audit/human-approval-vs-rejection");
-        return response.data;
+        return normalizeHumanApproval(response.data);
     } catch {
         return { approved: 0, rejected: 0 };
     }
@@ -134,7 +207,7 @@ export async function getHumanApprovalVsRejection() {
 export async function getAttackSeverityBreakdown() {
     try {
         const response = await API.get("/audit/attack-severity-breakdown");
-        return response.data;
+        return normalizeSeverity(response.data);
     } catch {
         return { critical: 0, high: 0, medium: 0, low: 0 };
     }
@@ -147,6 +220,11 @@ export async function getIPIntelligence() {
     } catch {
         return [];
     }
+}
+
+export async function getAttackSuccessRate() {
+    const response = await API.get("/audit/attack-success-rate");
+    return response.data;
 }
 
 /* ===== EXISTING ENDPOINTS ===== */

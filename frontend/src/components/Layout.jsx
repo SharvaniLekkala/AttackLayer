@@ -6,7 +6,7 @@ import "./layout.css";
 const navItems = [
     {
         to: "/dashboard",
-        label: "Dashboard",
+        label: "Security Operations Center",
         icon: (
             <svg viewBox="0 0 24 24">
                 <rect x="3" y="3" width="7" height="7" rx="1" />
@@ -29,7 +29,7 @@ const navItems = [
     },
     {
         to: "/hitl",
-        label: "Human Validation",
+        label: "Human Review Center",
         icon: (
             <svg viewBox="0 0 24 24">
                 <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
@@ -40,7 +40,7 @@ const navItems = [
     },
     {
         to: "/threat-analysis",
-        label: "Threat Analysis",
+        label: "Threat Analysis & Intelligence",
         icon: (
             <svg viewBox="0 0 24 24">
                 <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />

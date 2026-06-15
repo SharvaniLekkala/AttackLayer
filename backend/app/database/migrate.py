@@ -12,6 +12,8 @@ MEMORY_COLUMNS = {
     "usage_count": "INTEGER DEFAULT 0",
     "attack_history": "VARCHAR DEFAULT ''",
     "status": "VARCHAR DEFAULT 'ACTIVE'",
+    "memory_type": "VARCHAR DEFAULT 'LONG_TERM'",
+    "trust_explanation": "VARCHAR DEFAULT ''",
 }
 
 AUDIT_COLUMNS = {

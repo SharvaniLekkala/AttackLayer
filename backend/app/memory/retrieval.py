@@ -19,7 +19,7 @@ from app.security.retrieval_gaurd import (
 
 from app.security.semantic_engine import (
     get_embedding,
-    cosine_similarity,
+    score_prototypes,
 )
 from app.security.semantic_classifier import classify_query_categories
 
@@ -51,7 +51,7 @@ def _recency_score(updated_at):
 
 def _hybrid_score(memory, query, query_embedding, target_categories):
     fact_embedding = get_embedding(memory.fact)
-    semantic = cosine_similarity(query_embedding, fact_embedding)
+    semantic = score_prototypes(query_embedding, [fact_embedding])
     keyword = _keyword_score(query, memory.fact)
     trust = memory.trust_score or 0.5
     importance = getattr(memory, "importance_score", None) or 0.5

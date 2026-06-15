@@ -229,22 +229,17 @@ def create_memory(
 
         parent_memory_id = existing_memory.id
     trust_result = calculate_trust(
-
         source="USER",
-
-        security_decision=
-            security_result["decision"],
-
-        category_confidence=
-            security_result["category_confidence"],
-
-        conflict_detected=
-            conflict_detected,
-
+        security_decision=security_result["decision"],
+        category_confidence=security_result["category_confidence"],
+        conflict_detected=conflict_detected,
         version=new_version,
-
-        attack_type=attack_type
-
+        attack_type=attack_type,
+        poison_score=poison_score,
+        conflict_score=conflict_score,
+        category=security_result["category"],
+        verification_count=(existing_memory.verification_count or 0) if existing_memory else 0,
+        conflict_count=(existing_memory.conflict_count or 0) if existing_memory else 0,
     )
 
     # ===================================
@@ -293,13 +288,6 @@ def create_memory(
             "decision"
         ]
     )
-    print("\n========== MEMORY DEBUG ==========")
-    print("FACT:", fact)
-    print("ATTACK TYPE:", attack_type)
-    print("CONFLICT SCORE:", trust_result["conflict_score"])
-    print("POISON SCORE:", trust_result["poison_score"])
-    print("FINAL DECISION:", final_decision)
-    print("==================================\n")
 
     # ===================================
     # QUARANTINE
@@ -476,17 +464,13 @@ def create_memory(
         existing_memory
     ):
 
-        # For research purposes, keep all memories active - don't deactivate
-        # existing_memory.active = False
-        # existing_memory.status = "ARCHIVED"
+        existing_memory.active = False
+        existing_memory.status = "ARCHIVED"
         existing_memory.conflict_count = (
             (getattr(existing_memory, "conflict_count", 0) or 0) + 1
         )
 
-        # Keep embeddings for all memories for research
-        # remove_memory_embedding(
-        #     existing_memory.id
-        # )
+        remove_memory_embedding(existing_memory.id)
 
         if (
             attack_type
@@ -613,6 +597,11 @@ def create_memory(
             drift_score
 
     )
+
+    import json
+    explanation = trust_result.get("trust_explanation", {})
+    if explanation:
+        memory.trust_explanation = json.dumps(explanation)
 
     db.add(memory)
 
@@ -749,32 +738,93 @@ def get_memory_history(
     )
 
 
+def delete_memory(db: Session, memory_id: int):
+    memory = (
+        db.query(Memory)
+        .filter(Memory.id == memory_id)
+        .first()
+    )
+    if not memory:
+        return None
+
+    remove_memory_embedding(memory_id)
+    db.delete(memory)
+    db.commit()
+    return {"status": "deleted", "memory_id": memory_id}
+
+
+def get_memory_trust(db: Session, memory_id: int):
+    memory = (
+        db.query(Memory)
+        .filter(Memory.id == memory_id)
+        .first()
+    )
+    if not memory:
+        return None
+
+    import json
+    explanation = {}
+    raw = getattr(memory, "trust_explanation", None)
+    if raw:
+        try:
+            explanation = json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            explanation = {"summary": str(raw)}
+
+    return {
+        "memory_id": memory.id,
+        "trust_score": memory.trust_score,
+        "confidence_score": memory.confidence_score,
+        "conflict_score": memory.conflict_score,
+        "poison_score": memory.poison_score,
+        "category": memory.category,
+        "memory_type": getattr(memory, "memory_type", "LONG_TERM"),
+        "attack_type": memory.attack_type,
+        "verification_count": memory.verification_count or 0,
+        "trust_explanation": explanation,
+    }
+
+
 def clear_episodic_memories(db: Session):
-    """
-    Clear all episodic memories.
-    For research purposes, no memories are actually deleted - all memories are preserved.
-    Episodic memories are defined as those with category "EPISODIC" or source containing "session".
-    """
-    # For research purposes, preserve all memories - return 0 to indicate none were cleared
-    return 0
+    memories = (
+        db.query(Memory)
+        .filter(Memory.memory_type == "EPISODIC", Memory.active == True)
+        .all()
+    )
+    count = 0
+    for memory in memories:
+        remove_memory_embedding(memory.id)
+        db.delete(memory)
+        count += 1
+    db.commit()
+    return count
 
 
 def clear_short_term_memories(db: Session):
-    """
-    Clear all short-term memories.
-    For research purposes, no memories are actually deleted - all memories are preserved.
-    Short-term memories are defined as those with category "SHORT_TERM" or importance_score < 0.5.
-    """
-    # For research purposes, preserve all memories - return 0 to indicate none were cleared
-    return 0
+    memories = (
+        db.query(Memory)
+        .filter(Memory.memory_type == "SHORT_TERM", Memory.active == True)
+        .all()
+    )
+    count = 0
+    for memory in memories:
+        remove_memory_embedding(memory.id)
+        db.delete(memory)
+        count += 1
+    db.commit()
+    return count
 
 
 def clear_long_term_memories(db: Session):
-    """
-    Clear all long-term memories.
-    For research purposes, no memories are actually deleted - all memories are preserved.
-    Long-term memories are defined as those with category "LONG_TERM" or
-    (trust_score > 0.7 and importance_score >= 0.5).
-    """
-    # For research purposes, preserve all memories - return 0 to indicate none were cleared
-    return 0
+    memories = (
+        db.query(Memory)
+        .filter(Memory.memory_type == "LONG_TERM", Memory.active == True)
+        .all()
+    )
+    count = 0
+    for memory in memories:
+        remove_memory_embedding(memory.id)
+        db.delete(memory)
+        count += 1
+    db.commit()
+    return count

@@ -45,14 +45,16 @@ from app.api.hitl import (
 )
 from app.database.migrate import run_migrations
 from app.api.admin import router as admin_router
+from app.data.dataset_loader import bootstrap_prototypes
 
 app = FastAPI(
     title="AttackLayer",
-    description="Semantic Security Firewall for Long-Term Memory in LLM Agents",
-    version="2.0.0"
+    description="AI Memory Security Platform — NeuroSymbolic Memory Protection",
+    version="3.0.0"
 )
 Base.metadata.create_all(bind=engine)
 run_migrations()
+bootstrap_prototypes()
 app.include_router(memory_router)
 app.include_router(classifier_router)
 app.include_router(
@@ -104,7 +106,7 @@ async def root():
     return {
         "project": "AttackLayer",
         "status": "running",
-        "version": "2.0.0"
+        "version": "3.0.0"
     }
 
 
