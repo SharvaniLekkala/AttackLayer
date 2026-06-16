@@ -53,13 +53,13 @@ def get_attack_prototypes() -> dict:
         hf_examples = load_hf_poisoning_corpus()
 
         HF_TO_ATTACKLAYER = {
-            "PROMPT_INJECTION": "PROMPT_INJECTION",
-            "SYSTEM_PROMPT_EXTRACTION": "SYSTEM_PROMPT_EXTRACTION",
-            "ROLE_HIJACK": "ROLE_HIJACKING",
-            "MEMORY_POISONING": "DELAYED_POISONING",
-            "FALSE_FACT_INJECTION": "FALSE_FACT_INJECTION",
-            "SAFE": None,
-        }
+    "PROMPT_INJECTION": "PROMPT_INJECTION",
+    "SYSTEM_PROMPT_EXTRACTION": "SYSTEM_PROMPT_EXTRACTION",
+    "ROLE_HIJACK": "ROLE_HIJACK",
+    "MEMORY_POISONING": "MEMORY_POISONING",
+    "FALSE_FACT_INJECTION": "FALSE_FACT_INJECTION",
+    "SAFE": None,
+}
 
         for hf_category, texts in hf_examples.items():
 

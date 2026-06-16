@@ -7,8 +7,8 @@ CATEGORY_MAP = {
     "instruction_override": "PROMPT_INJECTION",
     "prompt_injection": "PROMPT_INJECTION",
     "secret_leakage": "SYSTEM_PROMPT_EXTRACTION",
-    "role_hijacking": "ROLE_HIJACKING",
-    "data_exfiltration": "DELAYED_POISONING",
+    "role_hijacking": "ROLE_HIJACK",
+    "data_exfiltration": "MEMORY_POISONING",
     "integrity_tampering": "FALSE_FACT_INJECTION",
 }
 

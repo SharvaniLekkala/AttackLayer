@@ -112,15 +112,15 @@ def bootstrap_prototypes():
     """Merge HF corpus into local prototype definitions."""
     hf_corpus = load_hf_poisoning_corpus()
     attack_map = {
-        "FALSE_FACT_INJECTION": "FALSE_FACT_INJECTION",
-        "PREFERENCE_MANIPULATION": "PREFERENCE_MANIPULATION",
-        "ROLE_HIJACKING": "ROLE_HIJACK",
-        "PROMPT_INJECTION": "PROMPT_INJECTION",
-        "DELAYED_POISONING": "MEMORY_POISONING",
-        "MEMORY_OVERRIDE": "MEMORY_OVERWRITE",
-        "TOOL_MANIPULATION": "TOOL_POLICY_MANIPULATION",
-        "SYSTEM_PROMPT_EXTRACTION": "SYSTEM_PROMPT_EXTRACTION",
-    }
+    "FALSE_FACT_INJECTION": "FALSE_FACT_INJECTION",
+    "PREFERENCE_MANIPULATION": "PREFERENCE_MANIPULATION",
+    "ROLE_HIJACK": "ROLE_HIJACK",
+    "PROMPT_INJECTION": "PROMPT_INJECTION",
+    "MEMORY_POISONING": "MEMORY_POISONING",
+    "MEMORY_OVERRIDE": "MEMORY_OVERWRITE",
+    "TOOL_MANIPULATION": "TOOL_POLICY_MANIPULATION",
+    "SYSTEM_PROMPT_EXTRACTION": "SYSTEM_PROMPT_EXTRACTION",
+}
     for hf_cat, examples in hf_corpus.items():
         attack_key = attack_map.get(hf_cat, hf_cat)
         if attack_key in ATTACK_EXAMPLES:
