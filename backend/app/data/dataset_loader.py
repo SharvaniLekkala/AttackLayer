@@ -16,32 +16,73 @@ def load_local_poisoning_corpus() -> dict:
 
 
 def load_hf_poisoning_corpus(cache_dir: str = None) -> dict:
+    print(
+    "ATTACKLAYER_HF_DATASETS =",
+    os.getenv("ATTACKLAYER_HF_DATASETS")
+)
     """
-    Load from HuggingFace when available; fall back to local corpus.
-    Set ATTACKLAYER_HF_DATASETS=1 to attempt network load.
+    Load memory poisoning attack dataset from HuggingFace.
+
+    Returns:
+
+    {
+        "PROMPT_INJECTION": [
+            "...",
+            "...",
+        ],
+        "ROLE_HIJACK": [
+            "...",
+        ]
+    }
     """
+
     if os.getenv("ATTACKLAYER_HF_DATASETS", "0") != "1":
         return load_local_poisoning_corpus()
 
     try:
-        from datasets import load_dataset
-
-        ds = load_dataset(
-            "vgudur/memory-poisoning-attack-corpus",
-            split="train",
-            cache_dir=cache_dir,
+        import pandas as pd
+        print("LOADING HF DATASET...")
+        df = pd.read_json(
+            "hf://datasets/vgudur/memory-poisoning-attack-corpus/data/train.jsonl",
+            lines=True,
         )
+        
+        print(df.shape)
+        print(df.head())
+        CATEGORY_MAP = {
+            "benign": "SAFE",
+            "instruction_override": "PROMPT_INJECTION",
+            "prompt_injection": "PROMPT_INJECTION",
+            "secret_leakage": "SYSTEM_PROMPT_EXTRACTION",
+            "role_hijacking": "ROLE_HIJACK",
+            "data_exfiltration": "MEMORY_POISONING",
+            "integrity_tampering": "FALSE_FACT_INJECTION",
+        }
+
         corpus = {}
-        for row in ds:
-            category = row.get("category") or row.get("attack_type") or "UNKNOWN"
-            text = row.get("text") or row.get("prompt") or row.get("example", "")
+
+        for _, row in df.iterrows():
+
+            category = CATEGORY_MAP.get(
+                row["category"],
+                row["category"].upper(),
+            )
+
+            text = str(row["text"]).strip()
+
             if not text:
                 continue
-            corpus.setdefault(category, []).append(text)
-        return corpus if corpus else load_local_poisoning_corpus()
-    except Exception:
-        return load_local_poisoning_corpus()
 
+            corpus.setdefault(category, [])
+
+            if text not in corpus[category]:
+                corpus[category].append(text)
+
+        return corpus
+
+    except Exception as e:
+        print("HF DATASET LOAD FAILED:", e)
+        return load_local_poisoning_corpus()
 
 def load_hf_memory_datasets() -> dict:
     """Search-based memory dataset loader — extends category examples."""
@@ -102,3 +143,15 @@ def export_benchmark_json(path: str, metrics: dict):
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(metrics, f, indent=2, default=str)
+if __name__ == "__main__":
+
+    corpus = load_hf_poisoning_corpus()
+
+    print("--------------------------------")
+    print("Loaded Categories")
+    print("--------------------------------")
+
+    for k, v in corpus.items():
+        print(k, len(v))
+
+    print("--------------------------------")

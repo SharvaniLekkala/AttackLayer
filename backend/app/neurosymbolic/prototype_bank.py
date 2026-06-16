@@ -12,7 +12,7 @@ from app.data.local_corpus import (
     QUERY_CATEGORY_EXAMPLES,
     INTENT_EXAMPLES,
 )
-
+from app.data.dataset_loader import load_hf_poisoning_corpus
 _embedding_cache: dict = {}
 _prototype_cache: dict = {}
 
@@ -40,11 +40,55 @@ def get_memory_type_prototypes() -> dict:
 
 
 def get_attack_prototypes() -> dict:
+
     if "attack" not in _prototype_cache:
+
+        merged_examples = {}
+
+        # Existing local corpus
+        for attack, examples in ATTACK_EXAMPLES.items():
+            merged_examples[attack] = list(examples)
+
+        # HF dataset
+        hf_examples = load_hf_poisoning_corpus()
+
+        HF_TO_ATTACKLAYER = {
+            "PROMPT_INJECTION": "PROMPT_INJECTION",
+            "SYSTEM_PROMPT_EXTRACTION": "SYSTEM_PROMPT_EXTRACTION",
+            "ROLE_HIJACK": "ROLE_HIJACKING",
+            "MEMORY_POISONING": "DELAYED_POISONING",
+            "FALSE_FACT_INJECTION": "FALSE_FACT_INJECTION",
+            "SAFE": None,
+        }
+
+        for hf_category, texts in hf_examples.items():
+
+            mapped_attack = HF_TO_ATTACKLAYER.get(hf_category)
+
+            if not mapped_attack:
+                continue
+
+            merged_examples.setdefault(mapped_attack, [])
+
+            existing = set(merged_examples[mapped_attack])
+
+            for text in texts:
+
+                if text not in existing:
+                    merged_examples[mapped_attack].append(text)
+
+        print("\n=== ATTACK PROTOTYPE COUNTS ===")
+
+        for attack, examples in merged_examples.items():
+            print(f"{attack}: {len(examples)}")
+
+        print("===============================\n")
+
         _prototype_cache["attack"] = {
             attack: _embed_texts(examples)
-            for attack, examples in ATTACK_EXAMPLES.items()
+            for attack, examples in merged_examples.items()
         }
+
     return _prototype_cache["attack"]
 
 
