@@ -26,3 +26,8 @@ def get_poisoning_dataset():
         "total_examples": sum(len(v) for v in POISONING_DATASET.values()),
         "dataset": POISONING_DATASET,
     }
+@router.get("/research-metrics")
+def get_research_metrics(
+    db: Session = Depends(get_db)
+):
+    return compute_classification_metrics(db)

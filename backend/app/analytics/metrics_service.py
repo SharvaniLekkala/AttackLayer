@@ -9,7 +9,9 @@ from sqlalchemy.orm import Session
 
 from app.database.models import AuditEvent, Memory, ClassificationStat
 from app.security.attack_registry import SEVEN_ATTACKS
-
+from app.evaluation.metrics import (
+    compute_classification_metrics
+)
 
 def _all_events(db: Session):
     return db.query(AuditEvent).all()
@@ -104,6 +106,9 @@ def get_extended_metrics(db: Session) -> dict:
         e for e in events
         if e.final_decision == "ALLOW_WITH_WARNING"
     ]
+    research_metrics = (
+    compute_classification_metrics(db)
+)
 
     return {
         "memory_accuracy": round(
@@ -146,6 +151,20 @@ def get_extended_metrics(db: Session) -> dict:
                 and e.decision == "ALLOW"
             ) / (attack_attempts or 1)), 4
         ),
+        "poisoning_success_rate":
+research_metrics["poisoning_success_rate"],
+
+"detection_rate":
+research_metrics["detection_rate"],
+
+"memory_contamination_rate":
+research_metrics["memory_contamination_rate"],
+
+"recovery_rate":
+research_metrics["recovery_rate"],
+
+"attack_classification_accuracy":
+research_metrics["attack_classification_accuracy"],
     }
 
 
