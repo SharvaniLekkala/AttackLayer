@@ -15,7 +15,10 @@ def load_local_poisoning_corpus() -> dict:
     return POISONING_DATASET.copy()
 
 
-def load_hf_poisoning_corpus(cache_dir: str = None) -> dict:
+def load_hf_poisoning_corpus(
+    cache_dir: str = None,
+    benchmark_mode: bool = False,
+) -> dict:
     print(
     "ATTACKLAYER_HF_DATASETS =",
     os.getenv("ATTACKLAYER_HF_DATASETS")
@@ -78,11 +81,37 @@ def load_hf_poisoning_corpus(cache_dir: str = None) -> dict:
             if text not in corpus[category]:
                 corpus[category].append(text)
 
-        return corpus
+        if benchmark_mode:
+            return corpus
+
+        train_corpus = {}
+
+        for category, samples in corpus.items():
+
+            split_idx = int(len(samples) * 0.8)
+
+            train_corpus[category] = samples[:split_idx]
+
+        return train_corpus
 
     except Exception as e:
         print("HF DATASET LOAD FAILED:", e)
         return load_local_poisoning_corpus()
+def load_hf_benchmark_split() -> dict:
+
+    corpus = load_hf_poisoning_corpus(
+        benchmark_mode=True
+    )
+
+    benchmark = {}
+
+    for category, samples in corpus.items():
+
+        split_idx = int(len(samples) * 0.8)
+
+        benchmark[category] = samples[split_idx:]
+
+    return benchmark
 
 def load_hf_memory_datasets() -> dict:
     """Search-based memory dataset loader — extends category examples."""
@@ -155,3 +184,42 @@ if __name__ == "__main__":
         print(k, len(v))
 
     print("--------------------------------")
+def load_personachat_benign_dataset(
+    limit: int = 1000
+) -> list[str]:
+
+    try:
+
+        from datasets import load_dataset
+
+        ds = load_dataset(
+            "bavard/personachat_truecased",
+            split="train"
+        )
+
+        memories = []
+
+        for row in ds:
+
+            persona = row.get("persona", [])
+
+            for item in persona:
+
+                item = str(item).strip()
+
+                if item and item not in memories:
+                    memories.append(item)
+
+                if len(memories) >= limit:
+                    return memories
+
+        return memories
+
+    except Exception as e:
+
+        print(
+            "PERSONACHAT LOAD FAILED:",
+            e
+        )
+
+        return []

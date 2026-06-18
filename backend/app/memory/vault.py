@@ -609,7 +609,20 @@ def create_memory(
 
     db.refresh(memory)
 
-    if final_decision != "ALLOW_WITH_WARNING":
+    import os
+
+    BENCHMARK_MODE = (
+        os.getenv(
+            "ATTACKLAYER_BENCHMARK",
+            "0"
+        ) == "1"
+    )
+
+    if (
+        final_decision != "ALLOW_WITH_WARNING"
+        and
+        not BENCHMARK_MODE
+    ):
 
         embedding = generate_embedding(
             fact

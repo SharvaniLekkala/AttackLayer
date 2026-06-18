@@ -2,15 +2,15 @@ from app.database.session import SessionLocal
 from app.memory.vault import create_memory
 
 from app.data.dataset_loader import (
-    load_hf_poisoning_corpus
+    load_hf_benchmark_split
 )
 
-
+import math 
 def run_hf_benchmark():
 
     db = SessionLocal()
 
-    corpus = load_hf_poisoning_corpus()
+    corpus = load_hf_benchmark_split()
 
     total = 0
     blocked = 0
@@ -169,6 +169,11 @@ def run_hf_benchmark():
         if (fp + tn)
         else 0
     )
+    specificity = (
+    tn / (tn + fp)
+    if (tn + fp)
+    else 0
+)
 
     psr = (
         fn / (tp + fn)
@@ -177,11 +182,26 @@ def run_hf_benchmark():
     )
 
     defense_effectiveness = 1 - psr
+    balanced_accuracy = (
+    recall + specificity
+) / 2
+    mcc_denominator = math.sqrt(
+        (tp + fp)
+        * (tp + fn)
+        * (tn + fp)
+        * (tn + fn)
+    )
 
+    mcc = (
+        (tp * tn) - (fp * fn)
+    ) / mcc_denominator if mcc_denominator else 0
     print(f"Accuracy: {accuracy:.4f}")
     print(f"Precision: {precision:.4f}")
     print(f"Recall / Detection Rate: {recall:.4f}")
     print(f"F1 Score: {f1:.4f}")
+    print(f"Specificity: {specificity:.4f}")
+    print(f"Balanced Accuracy: {balanced_accuracy:.4f}")
+    print(f"MCC: {mcc:.4f}")
 
     print()
 
