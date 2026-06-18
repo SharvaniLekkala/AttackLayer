@@ -1,2 +1,6 @@
+backend/attacklayer.db
+backend/chroma_db/
+*.db
+*.sqlite3
 __pycache__/
 *.pyc
