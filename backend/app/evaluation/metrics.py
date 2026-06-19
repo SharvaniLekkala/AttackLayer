@@ -10,6 +10,39 @@ def _safe_divide(numerator, denominator):
     return round(numerator / denominator, 4) if denominator else 0.0
 
 
+def calculate_metrics(tp, fp, tn, fn):
+    import math
+    accuracy = _safe_divide(tp + tn, tp + tn + fp + fn)
+    precision = _safe_divide(tp, tp + fp)
+    recall = _safe_divide(tp, tp + fn)
+    f1 = _safe_divide(2 * precision * recall, precision + recall)
+    specificity = _safe_divide(tn, tn + fp)
+    fpr = _safe_divide(fp, fp + tn)
+    balanced_accuracy = round((recall + specificity) / 2.0, 4)
+    
+    mcc_denom = math.sqrt((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn)) if (tp + fp) * (tp + fn) * (tn + fp) * (tn + fn) > 0 else 0
+    mcc = round((tp * tn - fp * fn) / mcc_denom, 4) if mcc_denom else 0.0
+    psr = _safe_divide(fn, tp + fn)
+    defense_effectiveness = round(1.0 - psr, 4)
+
+    return {
+        "TP": tp,
+        "FP": fp,
+        "TN": tn,
+        "FN": fn,
+        "Accuracy": accuracy,
+        "Precision": precision,
+        "Recall": recall,
+        "F1": f1,
+        "Specificity": specificity,
+        "FPR": fpr,
+        "Balanced Accuracy": balanced_accuracy,
+        "MCC": mcc,
+        "PSR": psr,
+        "Defense Effectiveness": defense_effectiveness
+    }
+
+
 def compute_classification_metrics(db):
     stats = db.query(ClassificationStat).all()
 
@@ -25,12 +58,10 @@ def compute_classification_metrics(db):
         if not s.was_blocked and s.predicted_label == "SAFE"
     )
 
-    precision = _safe_divide(tp, tp + fp)
-    recall = _safe_divide(tp, tp + fn)
-    f1 = _safe_divide(
-        2 * precision * recall,
-        precision + recall,
-    )
+    metrics_dict = calculate_metrics(tp, fp, tn, fn)
+    precision = metrics_dict["Precision"]
+    recall = metrics_dict["Recall"]
+    f1 = metrics_dict["F1"]
 
     learning = get_learning_stats(db)
 

@@ -48,7 +48,9 @@ from app.memory_security.services.preference_event_logger import (
 from app.memory_security.services.tool_policy_event_logger import (
     log_tool_policy_event
 )
-
+from app.ml.predict_decision import predict_decision
+from app.ml.decision_mapper import map_decision
+from app.memory.embedding_service import generate_embedding
 def create_memory(
     db,
     user_id,
@@ -58,7 +60,47 @@ def create_memory(
     security_result = evaluate_security(
         fact
     )
+    # ============================
+    # ML Decision Layer
+    # ============================
 
+    embedding = generate_embedding(
+        fact
+    )
+
+    decision_output = predict_decision(
+        embedding
+    )
+
+    ml_prediction = decision_output["prediction"]
+
+    ml_confidence = decision_output["confidence"]
+
+    ml_decision = map_decision(
+        ml_prediction,
+        ml_confidence
+    )
+
+    print()
+    print("===== ML MODEL =====")
+
+    print(
+        "Prediction:",
+        ml_prediction
+    )
+
+    print(
+        "Confidence:",
+        round(
+            ml_confidence,
+            4
+        )
+    )
+
+    print(
+        "Decision:",
+        ml_decision
+    )
     if security_result["decision"] == "BLOCK":
 
         attack_type = (
@@ -138,7 +180,25 @@ def create_memory(
 
             "security": security_result
         }
+    # ===================================
+    # ML BLOCK
+    # ===================================
 
+    if ml_decision == "BLOCK":
+
+        return {
+
+            "status": "blocked",
+
+            "attack_type": "ML_ATTACK",
+
+            "ml_prediction": ml_prediction,
+
+            "ml_confidence": ml_confidence,
+
+            "decision": "BLOCK"
+
+        }
     conflict_result = detect_conflict(
 
         db=db,
@@ -256,38 +316,12 @@ def create_memory(
         poison_score
     )
 
-    pipeline_result = (
 
-        MemorySecurityPipeline.evaluate(
+    # ===================================
+    # ML FINAL DECISION
+    # ===================================
 
-            trust_score=
-                trust_result[
-                    "trust_score"
-                ],
-
-            confidence_score=
-                trust_result[
-                    "confidence_score"
-                ],
-
-            conflict_score=
-                trust_result[
-                    "conflict_score"
-                ],
-
-            poison_score=
-                trust_result[
-                    "poison_score"
-                ]
-        )
-
-    )
-
-    final_decision = (
-        pipeline_result[
-            "decision"
-        ]
-    )
+    final_decision = ml_decision
 
     # ===================================
     # QUARANTINE
@@ -594,7 +628,15 @@ def create_memory(
             stability_score,
 
         preference_drift_score=
-            drift_score
+            drift_score,
+        ml_prediction=
+    ml_prediction,
+
+ml_confidence=
+    ml_confidence,
+
+ml_decision=
+    ml_decision
 
     )
 
@@ -643,7 +685,7 @@ def create_memory(
     "status":
         (
             "pending_review"
-            if final_decision == "ALLOW_WITH_WARNING"
+            if final_decision in ("ALLOW_WITH_WARNING", "REVIEW")
             else "stored"
         ),
 
@@ -677,7 +719,15 @@ def create_memory(
         trust_result["trust_score"],
 
     "security":
-        security_result
+        security_result,
+    "ml_prediction":
+    ml_prediction,
+
+"ml_confidence":
+    ml_confidence,
+
+"ml_decision":
+    ml_decision
     
 
 }

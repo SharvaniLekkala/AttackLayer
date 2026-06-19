@@ -82,6 +82,24 @@ class Memory(Base):
         String,
         default="ALLOW"
     )
+    # ------------------------------
+    # ML Decision Layer
+    # ------------------------------
+
+    ml_prediction = Column(
+        Integer,
+        nullable=True
+    )
+
+    ml_confidence = Column(
+        Float,
+        default=0.0
+    )
+
+    ml_decision = Column(
+        String,
+        default="ALLOW"
+    )
 
     # ------------------------------
     # Versioning
