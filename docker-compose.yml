@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/data:/app/data
+      - ./backend/models:/app/models
+      - ./backend/chroma_db:/app/chroma_db
+    environment:
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - OLLAMA_CHAT_MODEL=llama3.2
+      - OLLAMA_EMBED_MODEL=nomic-embed-text
+      - DATABASE_URL=sqlite:///attacklayer.db
+      - CHROMA_PATH=./chroma_db
+      - ATTACKLAYER_HF_DATASETS=1
+      - SIMILARITY_ENGINE=attention
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
