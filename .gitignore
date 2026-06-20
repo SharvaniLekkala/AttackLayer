@@ -1,0 +1,63 @@
+# Virtual environments
+.venv/
+venv/
+backend/.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environment variables
+.env
+.env.*
+
+# IDE settings
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Test cache
+.pytest_cache/
+
+# Coverage reports
+.coverage
+htmlcov/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Model files (if generated locally)
+*.pkl
+*.joblib
+*.h5
+*.pt
+*.pth
+
+# ChromaDB persistent storage (optional)
+chroma_db/
+chromadb/
+
+# Hugging Face cache
+.cache/
+huggingface/
+hf_cache/
+
+# Ollama models (if stored locally)
+ollama_data/
+
+# Docker volumes/data directories
+data/
+volumes/
+
+# OS files
+.DS_Store
+Thumbs.db
